@@ -100,7 +100,7 @@
           </button>
         </header>
 
-        <main class="flex-1 overflow-y-auto p-6">
+        <main id="adminMain" class="flex-1 overflow-y-auto p-6">
           <!-- หน้า: Dashboard -->
           <div id="page-dashboard" class="page-content"></div>
           <!-- หน้า: รายชื่อเกียรติบัตร -->
@@ -256,6 +256,10 @@
       currentPage = page;
       document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
       document.getElementById('page-' + page).classList.remove('hidden');
+
+      const main = document.getElementById('adminMain');
+      main.classList.toggle('p-0', page === 'certificates');
+      main.classList.toggle('p-6', page !== 'certificates');
 
       document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
       document.querySelector(`[data-menu="${page}"]`).classList.add('active');
