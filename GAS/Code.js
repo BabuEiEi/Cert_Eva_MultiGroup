@@ -161,6 +161,7 @@ function setupSettingsSheet_(ss) {
     ['sheetId', ss.getId(), 'ID ของ Spreadsheet นี้ (เติมให้อัตโนมัติแล้ว)'],
     ['projectName', 'โครงการฝึกอบรม ปี 2569', 'ชื่อโครงการ'],
     ['certDate', '21 มิถุนายน 2569', 'วันที่บนเกียรติบัตร'],
+    ['trainingGroups', 'ความฉลาดรู้ด้านวิทยาศาสตร์|ความฉลาดรู้ด้านคณิตศาสตร์', 'ตัวเลือกกลุ่มผู้อบรม คั่นแต่ละตัวเลือกด้วยเครื่องหมาย |'],
     ['ratingYear', '2569', 'ปีที่ใช้ในรูปแบบ {YEAR} หรือ {YEAR_TH}']
   ];
   sheet.getRange(2, 1, settings.length, headers.length).setValues(settings);

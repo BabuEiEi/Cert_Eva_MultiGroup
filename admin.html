@@ -415,9 +415,13 @@
       if (res.success) { clearApiCache('getCertificates'); clearApiCache('getDashboard'); loadCertificates(); }
     }
 
-    function openCertificateModal(payload = '') {
+    async function openCertificateModal(payload = '') {
       const isEdit = !!payload;
       const cert = isEdit ? JSON.parse(decodeURIComponent(payload)) : { runNo: '', certNo: '', fullName: '', school: '', group: '', dateGroup: '', status: 'ยังไม่ประเมิน' };
+      const settingsRes = await callApiCached('getSettings');
+      const trainingGroups = parseTrainingGroups(settingsRes.success ? settingsRes.data.trainingGroups : '');
+      const groupOptions = buildTrainingGroupOptions(trainingGroups, cert.group || '');
+      const dateValue = toDateInputValue(cert.dateGroup || '');
       document.getElementById('modalTitle').textContent = isEdit ? 'แก้ไขรายชื่อเกียรติบัตร' : 'เพิ่มรายชื่อเกียรติบัตร';
       document.getElementById('modalBody').innerHTML = `
         <form onsubmit="saveCertificate(event)" class="space-y-4">
@@ -451,11 +455,13 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">กลุ่มผู้อบรม</label>
-              <input type="text" id="cert_group" value="${escapeHtml(cert.group || '')}" class="w-full px-3 py-2 border rounded-lg">
+              <select id="cert_group" class="w-full px-3 py-2 border rounded-lg bg-white">
+                ${groupOptions}
+              </select>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">วันที่อบรม</label>
-              <input type="text" id="cert_dateGroup" value="${escapeHtml(cert.dateGroup || '')}" class="w-full px-3 py-2 border rounded-lg">
+              <input type="date" id="cert_dateGroup" value="${escapeHtml(dateValue)}" class="w-full px-3 py-2 border rounded-lg">
             </div>
           </div>
           <p class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">${isEdit ? 'ถ้าแก้ไขชื่อ โรงเรียน หรือเลขที่ หลังสร้างไฟล์แล้ว ไฟล์ PDF เดิมจะไม่ถูกสร้างใหม่อัตโนมัติ ให้กดสร้างใหม่เมื่อจำเป็น' : 'ถ้าไม่กรอก No. หรือเลขที่เกียรติบัตร ระบบจะสร้างต่อจากรายการล่าสุดตามรูปแบบใน Settings'}</p>
@@ -470,6 +476,17 @@
 
     function certificateStatusOption(value, current) {
       return `<option value="${escapeHtml(value)}" ${value === current ? 'selected' : ''}>${escapeHtml(value)}</option>`;
+    }
+
+    function parseTrainingGroups(value) {
+      return String(value || '').split('|').map(item => item.trim()).filter(Boolean);
+    }
+
+    function buildTrainingGroupOptions(groups, current) {
+      const values = groups.slice();
+      if (current && values.indexOf(current) === -1) values.unshift(current);
+      if (values.length === 0) values.push('ความฉลาดรู้ด้านวิทยาศาสตร์', 'ความฉลาดรู้ด้านคณิตศาสตร์');
+      return values.map(value => `<option value="${escapeHtml(value)}" ${value === current ? 'selected' : ''}>${escapeHtml(value)}</option>`).join('');
     }
 
     async function saveCertificate(event) {
@@ -629,6 +646,47 @@
       const rawYear = Number(isoDateMatch[1] || parts.find(part => part.type === 'year').value);
       const year = rawYear >= 2400 ? rawYear : rawYear + 543;
       return `${day} ${thaiMonths[month - 1]} ${year}`;
+    }
+
+    function toDateInputValue(value) {
+      if (!value) return '';
+      const text = String(value).trim();
+
+      const isoDateMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+      if (isoDateMatch) {
+        const date = new Date(text);
+        if (isNaN(date.getTime())) return '';
+
+        const parts = new Intl.DateTimeFormat('th-TH-u-ca-gregory', { timeZone: 'Asia/Bangkok', day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(date);
+        const day = parts.find(part => part.type === 'day').value;
+        const month = parts.find(part => part.type === 'month').value;
+        const sourceYear = Number(isoDateMatch[1]);
+        const year = sourceYear >= 2400 ? sourceYear - 543 : Number(parts.find(part => part.type === 'year').value);
+        return `${String(year).padStart(4, '0')}-${month}-${day}`;
+      }
+
+      const thaiMonths = {
+        'มกราคม': 1,
+        'กุมภาพันธ์': 2,
+        'มีนาคม': 3,
+        'เมษายน': 4,
+        'พฤษภาคม': 5,
+        'มิถุนายน': 6,
+        'กรกฎาคม': 7,
+        'สิงหาคม': 8,
+        'กันยายน': 9,
+        'ตุลาคม': 10,
+        'พฤศจิกายน': 11,
+        'ธันวาคม': 12
+      };
+      const thaiDateMatch = text.match(/^(\d{1,2})\s+([^\s]+)\s+(\d{4})$/);
+      if (!thaiDateMatch || !thaiMonths[thaiDateMatch[2]]) return '';
+
+      const day = thaiDateMatch[1].padStart(2, '0');
+      const month = String(thaiMonths[thaiDateMatch[2]]).padStart(2, '0');
+      const rawYear = Number(thaiDateMatch[3]);
+      const year = rawYear >= 2400 ? rawYear - 543 : rawYear;
+      return `${String(year).padStart(4, '0')}-${month}-${day}`;
     }
 
     function readFileAsText(file) {
@@ -1096,6 +1154,7 @@
           <form onsubmit="saveSettings(event)" class="space-y-4">
             ${settingInput('projectName', 'ชื่อโครงการ', s.projectName)}
             ${settingInput('certDate', 'วันที่บนเกียรติบัตร', s.certDate)}
+            ${settingInput('trainingGroups', 'กลุ่มผู้อบรม (คั่นแต่ละตัวเลือกด้วย |)', s.trainingGroups)}
             ${settingInput('certPrefix', 'รูปแบบเลขที่ ({NO:0000}=เลขอารบิก, {NO_TH:๐๐๐๐}=เลขไทย)', s.certPrefix)}
             ${settingInput('startNumber', 'เลขเริ่มต้น', s.startNumber)}
             ${settingInput('certCount', 'จำนวนเกียรติบัตร', s.certCount)}
@@ -1133,7 +1192,7 @@
     }
 
     function getSettingsFormValues() {
-      const keys = ['projectName', 'certDate', 'certPrefix', 'startNumber', 'certCount', 'ratingYear', 'folderId', 'templateId'];
+      const keys = ['projectName', 'certDate', 'trainingGroups', 'certPrefix', 'startNumber', 'certCount', 'ratingYear', 'folderId', 'templateId'];
       const settings = {};
       keys.forEach(k => settings[k] = document.getElementById('set_' + k).value);
       return settings;
