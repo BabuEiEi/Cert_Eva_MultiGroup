@@ -851,11 +851,14 @@ function formatCertificateDate_(value) {
   if (!value) return '';
 
   let date = null;
+  let sourceYear = 0;
   if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
     date = value;
   } else {
     const text = String(value).trim();
-    if (!/^\d{4}-\d{2}-\d{2}(T.*)?$/.test(text)) return text;
+    const match = text.match(/^(\d{4})-\d{2}-\d{2}(T.*)?$/);
+    if (!match) return text;
+    sourceYear = Number(match[1]);
     date = new Date(text);
     if (isNaN(date.getTime())) return text;
   }
@@ -864,7 +867,8 @@ function formatCertificateDate_(value) {
   const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
   const day = Number(Utilities.formatDate(date, timezone, 'd'));
   const month = Number(Utilities.formatDate(date, timezone, 'M'));
-  const year = Number(Utilities.formatDate(date, timezone, 'yyyy')) + 543;
+  const rawYear = sourceYear || Number(Utilities.formatDate(date, timezone, 'yyyy'));
+  const year = rawYear >= 2400 ? rawYear : rawYear + 543;
   return day + ' ' + thaiMonths[month - 1] + ' ' + year;
 }
 
