@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบค้นหาเกียรติบัตร</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Sarabun', sans-serif; }
@@ -423,6 +424,8 @@
         return;
       }
 
+      if (!validateTrainingGroupAnswer(answers)) return;
+
       showLoading('กำลังบันทึกแบบประเมิน...');
       const res = await callApi('submitResponse', {
         certNo: currentCert.certNo,
@@ -442,6 +445,53 @@
         } else {
           showToast(res.message || 'บันทึกไม่สำเร็จ', 'error');
         }
+      }
+    }
+
+    function validateTrainingGroupAnswer(answers) {
+      const expectedGroup = normalizeTrainingGroup(currentCert && currentCert.group);
+      if (!expectedGroup) return true;
+
+      const groupQuestion = findTrainingGroupQuestion();
+      if (!groupQuestion) return true;
+
+      const selectedGroup = normalizeTrainingGroup(answers[groupQuestion.questionId]);
+      if (!selectedGroup || selectedGroup === expectedGroup) return true;
+
+      showTrainingGroupMismatchAlert(currentCert.group, answers[groupQuestion.questionId]);
+      return false;
+    }
+
+    function findTrainingGroupQuestion() {
+      const expectedGroup = normalizeTrainingGroup(currentCert && currentCert.group);
+      if (!expectedGroup) return null;
+
+      return questionsCache.find(q => {
+        if (q.questionType !== 'radio' || !Array.isArray(q.choices)) return false;
+
+        const questionText = normalizeTrainingGroup(q.questionText);
+        const looksLikeTrainingGroupQuestion = questionText.indexOf('อบรม') !== -1 && questionText.indexOf('ความฉลาดรู้') !== -1;
+        const hasExpectedChoice = q.choices.some(choice => normalizeTrainingGroup(choice.value) === expectedGroup || normalizeTrainingGroup(choice.label) === expectedGroup);
+        return looksLikeTrainingGroupQuestion || hasExpectedChoice;
+      }) || null;
+    }
+
+    function normalizeTrainingGroup(value) {
+      return String(value || '').replace(/\s+/g, '').trim();
+    }
+
+    function showTrainingGroupMismatchAlert(expected, selected) {
+      const message = `ข้อมูลเกียรติบัตรของคุณอยู่ในกลุ่ม "${expected || '-'}" แต่เลือก "${selected || '-'}" กรุณาเลือกกลุ่มให้ถูกต้องก่อนส่งแบบประเมิน`;
+      if (window.Swal) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'เลือกกลุ่มไม่ถูกต้อง',
+          text: message,
+          confirmButtonText: 'ตกลง',
+          confirmButtonColor: '#2563eb'
+        });
+      } else {
+        showToast(message, 'error');
       }
     }
 
