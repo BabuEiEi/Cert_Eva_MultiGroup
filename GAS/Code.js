@@ -55,14 +55,14 @@ function setupCertificatesSheet_(ss) {
   sheet.clear();
 
   // หัวคอลัมน์
-  const headers = ['runNo', 'certNo', 'fullName', 'school', 'status', 'fileUrl', 'createdAt'];
+  const headers = ['runNo', 'certNo', 'fullName', 'school', 'group', 'dateGroup', 'status', 'fileUrl', 'createdAt'];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
 
   // ข้อมูลตัวอย่าง 3 รายการ (เก็บเป็นภาษาไทยปกติ)
   const sampleData = [
-    [1, 'เลขที่ สพม.พลอต ๐๐๐๑/๒๕๖๙', 'สมชาย ใจดี', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', ''],
-    [2, 'เลขที่ สพม.พลอต ๐๐๐๒/๒๕๖๙', 'สมหญิง รักเรียน', 'โรงเรียนบ้านหนองหอย', 'ยังไม่ประเมิน', '', ''],
-    [3, 'เลขที่ สพม.พลอต ๐๐๐๓/๒๕๖๙', 'วีระ ขยันยิ่ง', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', '']
+    [1, 'เลขที่ สพม.พลอต ๐๐๐๑/๒๕๖๙', 'สมชาย ใจดี', 'โรงเรียนวัดบางปลา', 'กลุ่มที่ 1', '1 กรกฎาคม 2569', 'ยังไม่ประเมิน', '', ''],
+    [2, 'เลขที่ สพม.พลอต ๐๐๐๒/๒๕๖๙', 'สมหญิง รักเรียน', 'โรงเรียนบ้านหนองหอย', 'กลุ่มที่ 1', '1 กรกฎาคม 2569', 'ยังไม่ประเมิน', '', ''],
+    [3, 'เลขที่ สพม.พลอต ๐๐๐๓/๒๕๖๙', 'วีระ ขยันยิ่ง', 'โรงเรียนวัดบางปลา', 'กลุ่มที่ 2', '2 กรกฎาคม 2569', 'ยังไม่ประเมิน', '', '']
   ];
   sheet.getRange(2, 1, sampleData.length, headers.length).setValues(sampleData);
 
@@ -325,6 +325,45 @@ function migrateCertificatesRemovePrefix() {
   SpreadsheetApp.flush();
   if (typeof clearSheetCache_ === 'function') clearSheetCache_(SHEETS.CERTIFICATES);
   SpreadsheetApp.getUi().alert('ลบคอลัมน์ prefix จากชีต Certificates เรียบร้อยแล้ว');
+}
+
+/**
+ * เพิ่มคอลัมน์ group/dateGroup ให้ชีต Certificates เดิม โดยวางต่อจาก school
+ * วิธีใช้: รันฟังก์ชันนี้ครั้งเดียวหลังอัปเดตโค้ด ถ้าชีตเดิมยังไม่มีคอลัมน์ใหม่
+ */
+function migrateCertificatesAddGroupFields() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.CERTIFICATES);
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('ไม่พบชีต Certificates');
+    return;
+  }
+
+  let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const schoolIndex = headers.indexOf('school');
+  if (schoolIndex === -1) {
+    SpreadsheetApp.getUi().alert('ไม่พบคอลัมน์ school ในชีต Certificates');
+    return;
+  }
+
+  let inserted = 0;
+  if (headers.indexOf('group') === -1) {
+    sheet.insertColumnAfter(schoolIndex + 1);
+    sheet.getRange(1, schoolIndex + 2).setValue('group');
+    inserted++;
+  }
+
+  headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const groupIndex = headers.indexOf('group');
+  if (headers.indexOf('dateGroup') === -1) {
+    sheet.insertColumnAfter(groupIndex + 1);
+    sheet.getRange(1, groupIndex + 2).setValue('dateGroup');
+    inserted++;
+  }
+
+  SpreadsheetApp.flush();
+  if (typeof clearSheetCache_ === 'function') clearSheetCache_(SHEETS.CERTIFICATES);
+  SpreadsheetApp.getUi().alert(inserted > 0 ? 'เพิ่มคอลัมน์ group และ dateGroup ในชีต Certificates เรียบร้อยแล้ว' : 'ชีต Certificates มีคอลัมน์ group และ dateGroup อยู่แล้ว');
 }
 
 /**

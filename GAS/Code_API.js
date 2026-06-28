@@ -215,13 +215,17 @@ function readCertificatesSearchIndex_() {
   const data = certs.map(function (cert) {
     const fullName = decodeText_(cert.fullName);
     const school = decodeText_(cert.school);
+    const group = formatCertificateText_(cert.group);
+    const dateGroup = formatCertificateText_(cert.dateGroup);
     return {
       certNo: cert.certNo,
       fullName: fullName,
       school: school,
+      group: group,
+      dateGroup: dateGroup,
       status: getCertificateStatus_(cert, responseCertNoSet),
       fileUrl: cert.fileUrl || '',
-      searchText: (fullName + ' ' + school).toLowerCase()
+      searchText: (fullName + ' ' + school + ' ' + group + ' ' + dateGroup).toLowerCase()
     };
   });
 
@@ -279,6 +283,8 @@ function apiSearchCertificate_(params) {
         certNo: c.certNo,
         fullName: c.fullName,
         school: c.school,
+        group: c.group,
+        dateGroup: c.dateGroup,
         status: c.status,
         fileUrl: c.fileUrl || ''
       });
@@ -437,6 +443,8 @@ function apiGetCertificates_() {
       certNo: c.certNo,
       fullName: decodeText_(c.fullName),
       school: decodeText_(c.school),
+      group: formatCertificateText_(c.group),
+      dateGroup: formatCertificateText_(c.dateGroup),
       status: getCertificateStatus_(c, responseCertNoSet),
       fileUrl: c.fileUrl || ''
     };
@@ -481,6 +489,8 @@ function apiImportCertificates_(params) {
     rows.forEach(function (item) {
       const fullName = String(item.fullName || item.name || '').trim();
       const school = String(item.school || '').trim();
+      const group = String(item.group || '').trim();
+      const dateGroup = String(item.dateGroup || '').trim();
       if (!fullName) { skipped++; return; }
 
       const runNo = Number(item.runNo) || nextRunNo;
@@ -493,6 +503,8 @@ function apiImportCertificates_(params) {
         certNo,
         fullName,
         school,
+        group,
+        dateGroup,
         item.status || 'ยังไม่ประเมิน',
         item.fileUrl || '',
         item.createdAt || ''
@@ -502,7 +514,7 @@ function apiImportCertificates_(params) {
 
     if (values.length === 0) return { success: false, message: 'ไม่มีรายการที่นำเข้าได้' + (skipped ? ' (ข้าม ' + skipped + ' รายการ)' : '') };
 
-    sheet.getRange(sheet.getLastRow() + 1, 1, values.length, 7).setValues(values);
+    sheet.getRange(sheet.getLastRow() + 1, 1, values.length, 9).setValues(values);
     SpreadsheetApp.flush();
     clearSheetCache_(SHEETS.CERTIFICATES);
 
@@ -557,6 +569,8 @@ function apiSaveCertificate_(params) {
       certNo,
       fullName,
       String(params.school || '').trim(),
+      String(params.group || '').trim(),
+      String(params.dateGroup || '').trim(),
       params.status || (existing && existing.status) || 'ยังไม่ประเมิน',
       (existing && existing.fileUrl) || '',
       (existing && existing.createdAt) || ''
@@ -783,6 +797,8 @@ function createCertificateFile_(cert) {
     slides.replaceAllText('{{prefix}}', '');
     slides.replaceAllText('{{fullName}}', fullName);
     slides.replaceAllText('{{school}}', decodeText_(cert.school));
+    slides.replaceAllText('{{group}}', formatCertificateText_(cert.group));
+    slides.replaceAllText('{{dateGroup}}', formatCertificateText_(cert.dateGroup));
     slides.replaceAllText('{{certNo}}', cert.certNo);
     slides.replaceAllText('{{date}}', settings.certDate || '');
     slides.replaceAllText('{{projectName}}', settings.projectName || '');
@@ -821,6 +837,14 @@ function createCertificateFile_(cert) {
   } catch (err) {
     return { success: false, message: err.message };
   }
+}
+
+function formatCertificateText_(value) {
+  if (!value) return '';
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  }
+  return String(value);
 }
 
 /**

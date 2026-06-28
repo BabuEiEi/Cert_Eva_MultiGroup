@@ -330,6 +330,8 @@
           <td class="px-4 py-3 font-medium">${escapeHtml(c.certNo)}</td>
           <td class="px-4 py-3">${escapeHtml(c.fullName)}</td>
           <td class="px-4 py-3 text-gray-600">${escapeHtml(c.school)}</td>
+          <td class="px-4 py-3 text-gray-600">${escapeHtml(c.group || '')}</td>
+          <td class="px-4 py-3 text-gray-600">${escapeHtml(c.dateGroup || '')}</td>
           <td class="px-4 py-3">${badge}</td>
           <td class="px-4 py-3 text-center">${fileBtn}</td>
           <td class="px-4 py-3 text-center">
@@ -367,6 +369,7 @@
                 <tr>
                   <th class="px-4 py-3">No.</th><th class="px-4 py-3">เลขที่</th>
                   <th class="px-4 py-3">ชื่อ-นามสกุล</th><th class="px-4 py-3">โรงเรียน</th>
+                  <th class="px-4 py-3">กลุ่มผู้อบรม</th><th class="px-4 py-3">วันที่อบรม</th>
                   <th class="px-4 py-3">สถานะ</th><th class="px-4 py-3 text-center">ไฟล์</th><th class="px-4 py-3 text-center">จัดการ</th>
                 </tr>
               </thead>
@@ -408,7 +411,7 @@
 
     function openCertificateModal(payload = '') {
       const isEdit = !!payload;
-      const cert = isEdit ? JSON.parse(decodeURIComponent(payload)) : { runNo: '', certNo: '', fullName: '', school: '', status: 'ยังไม่ประเมิน' };
+      const cert = isEdit ? JSON.parse(decodeURIComponent(payload)) : { runNo: '', certNo: '', fullName: '', school: '', group: '', dateGroup: '', status: 'ยังไม่ประเมิน' };
       document.getElementById('modalTitle').textContent = isEdit ? 'แก้ไขรายชื่อเกียรติบัตร' : 'เพิ่มรายชื่อเกียรติบัตร';
       document.getElementById('modalBody').innerHTML = `
         <form onsubmit="saveCertificate(event)" class="space-y-4">
@@ -439,6 +442,16 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">โรงเรียน</label>
             <input type="text" id="cert_school" value="${escapeHtml(cert.school)}" class="w-full px-3 py-2 border rounded-lg">
           </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">กลุ่มผู้อบรม</label>
+              <input type="text" id="cert_group" value="${escapeHtml(cert.group || '')}" class="w-full px-3 py-2 border rounded-lg">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">วันที่อบรม</label>
+              <input type="text" id="cert_dateGroup" value="${escapeHtml(cert.dateGroup || '')}" class="w-full px-3 py-2 border rounded-lg">
+            </div>
+          </div>
           <p class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">${isEdit ? 'ถ้าแก้ไขชื่อ โรงเรียน หรือเลขที่ หลังสร้างไฟล์แล้ว ไฟล์ PDF เดิมจะไม่ถูกสร้างใหม่อัตโนมัติ ให้กดสร้างใหม่เมื่อจำเป็น' : 'ถ้าไม่กรอก No. หรือเลขที่เกียรติบัตร ระบบจะสร้างต่อจากรายการล่าสุดตามรูปแบบใน Settings'}</p>
           <div class="flex gap-3 pt-2">
             <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-medium">บันทึก</button>
@@ -461,6 +474,8 @@
         certNo: document.getElementById('cert_certNo').value,
         fullName: document.getElementById('cert_fullName').value,
         school: document.getElementById('cert_school').value,
+        group: document.getElementById('cert_group').value,
+        dateGroup: document.getElementById('cert_dateGroup').value,
         status: document.getElementById('cert_status').value
       };
       showLoading('กำลังบันทึกรายชื่อ...');
@@ -507,7 +522,7 @@
     }
 
     function downloadCertificateImportTemplate() {
-      const csv = '\ufefffullName,school\nนายสมชาย ใจดี,โรงเรียนวัดบางปลา\nนางสาวสมหญิง รักเรียน,โรงเรียนบ้านหนองหอย\n';
+      const csv = '\ufefffullName,school,group,dateGroup\nนายสมชาย ใจดี,โรงเรียนวัดบางปลา,กลุ่มที่ 1,1 กรกฎาคม 2569\nนางสาวสมหญิง รักเรียน,โรงเรียนบ้านหนองหอย,กลุ่มที่ 2,2 กรกฎาคม 2569\n';
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -530,7 +545,7 @@
 
         if (!rows.length) { showToast('ไม่พบข้อมูลในไฟล์', 'error'); return; }
 
-        const preview = rows.slice(0, 5).map((row, i) => `${i + 1}. ${escapeHtml(row.fullName || '-')} (${escapeHtml(row.school || '-')})`).join('<br>');
+        const preview = rows.slice(0, 5).map((row, i) => `${i + 1}. ${escapeHtml(row.fullName || '-')} (${escapeHtml(row.school || '-')}, ${escapeHtml(row.group || '-')}, ${escapeHtml(row.dateGroup || '-')})`).join('<br>');
         const confirmed = await Swal.fire({
           title: 'นำเข้ารายชื่อเกียรติบัตร?',
           html: `<div class="text-left text-sm text-gray-600">พบ ${rows.length} รายการ<br><br>${preview}${rows.length > 5 ? '<br>...' : ''}</div>`,
@@ -579,6 +594,8 @@
         certNo: pickImportValue(row, ['certNo', 'เลขที่', 'เลขที่เกียรติบัตร']),
         fullName: pickImportValue(row, ['fullName', 'ชื่อ-นามสกุล', 'ชื่อ', 'name']),
         school: pickImportValue(row, ['school', 'โรงเรียน']),
+        group: pickImportValue(row, ['group', 'กลุ่มผู้อบรม', 'กลุ่ม']),
+        dateGroup: pickImportValue(row, ['dateGroup', 'วันที่กลุ่มที่อบรม', 'วันที่อบรม']),
         status: pickImportValue(row, ['status', 'สถานะ'])
       })).filter(row => row.fullName);
     }
