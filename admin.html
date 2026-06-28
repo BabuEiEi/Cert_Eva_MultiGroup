@@ -258,7 +258,9 @@
       document.getElementById('page-' + page).classList.remove('hidden');
 
       const main = document.getElementById('adminMain');
-      main.classList.toggle('p-0', page === 'certificates');
+      main.classList.toggle('px-4', page === 'certificates');
+      main.classList.toggle('pt-0', page === 'certificates');
+      main.classList.toggle('pb-4', page === 'certificates');
       main.classList.toggle('p-6', page !== 'certificates');
 
       document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
@@ -335,7 +337,7 @@
           <td class="px-4 py-3">${escapeHtml(c.fullName)}</td>
           <td class="px-4 py-3 text-gray-600">${escapeHtml(c.school)}</td>
           <td class="px-4 py-3 text-gray-600">${escapeHtml(c.group || '')}</td>
-          <td class="px-4 py-3 text-gray-600">${escapeHtml(c.dateGroup || '')}</td>
+          <td class="px-4 py-3 text-gray-600">${escapeHtml(formatThaiDateDisplay(c.dateGroup))}</td>
           <td class="px-4 py-3">${badge}</td>
           <td class="px-4 py-3 text-center">${fileBtn}</td>
           <td class="px-4 py-3 text-center">
@@ -609,6 +611,23 @@
         if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return String(row[key]).trim();
       }
       return '';
+    }
+
+    function formatThaiDateDisplay(value) {
+      if (!value) return '';
+      const text = String(value).trim();
+      const isoDateMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+      if (!isoDateMatch) return text;
+
+      const date = new Date(text);
+      if (isNaN(date.getTime())) return text;
+
+      const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+      const parts = new Intl.DateTimeFormat('th-TH-u-ca-gregory', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'numeric', year: 'numeric' }).formatToParts(date);
+      const day = Number(parts.find(part => part.type === 'day').value);
+      const month = Number(parts.find(part => part.type === 'month').value);
+      const year = Number(parts.find(part => part.type === 'year').value) + 543;
+      return `${day} ${thaiMonths[month - 1]} ${year}`;
     }
 
     function readFileAsText(file) {

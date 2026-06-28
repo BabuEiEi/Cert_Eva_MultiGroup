@@ -216,7 +216,7 @@ function readCertificatesSearchIndex_() {
     const fullName = decodeText_(cert.fullName);
     const school = decodeText_(cert.school);
     const group = formatCertificateText_(cert.group);
-    const dateGroup = formatCertificateText_(cert.dateGroup);
+    const dateGroup = formatCertificateDate_(cert.dateGroup);
     return {
       certNo: cert.certNo,
       fullName: fullName,
@@ -444,7 +444,7 @@ function apiGetCertificates_() {
       fullName: decodeText_(c.fullName),
       school: decodeText_(c.school),
       group: formatCertificateText_(c.group),
-      dateGroup: formatCertificateText_(c.dateGroup),
+      dateGroup: formatCertificateDate_(c.dateGroup),
       status: getCertificateStatus_(c, responseCertNoSet),
       fileUrl: c.fileUrl || ''
     };
@@ -798,7 +798,7 @@ function createCertificateFile_(cert) {
     slides.replaceAllText('{{fullName}}', fullName);
     slides.replaceAllText('{{school}}', decodeText_(cert.school));
     slides.replaceAllText('{{group}}', formatCertificateText_(cert.group));
-    slides.replaceAllText('{{dateGroup}}', formatCertificateText_(cert.dateGroup));
+    slides.replaceAllText('{{dateGroup}}', formatCertificateDate_(cert.dateGroup));
     slides.replaceAllText('{{certNo}}', cert.certNo);
     slides.replaceAllText('{{date}}', settings.certDate || '');
     slides.replaceAllText('{{projectName}}', settings.projectName || '');
@@ -845,6 +845,27 @@ function formatCertificateText_(value) {
     return Utilities.formatDate(value, Session.getScriptTimeZone(), 'dd/MM/yyyy');
   }
   return String(value);
+}
+
+function formatCertificateDate_(value) {
+  if (!value) return '';
+
+  let date = null;
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    date = value;
+  } else {
+    const text = String(value).trim();
+    if (!/^\d{4}-\d{2}-\d{2}(T.*)?$/.test(text)) return text;
+    date = new Date(text);
+    if (isNaN(date.getTime())) return text;
+  }
+
+  const timezone = Session.getScriptTimeZone();
+  const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  const day = Number(Utilities.formatDate(date, timezone, 'd'));
+  const month = Number(Utilities.formatDate(date, timezone, 'M'));
+  const year = Number(Utilities.formatDate(date, timezone, 'yyyy')) + 543;
+  return day + ' ' + thaiMonths[month - 1] + ' ' + year;
 }
 
 /**
