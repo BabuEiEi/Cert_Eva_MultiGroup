@@ -1091,10 +1091,16 @@
         titleSub: 'Evaluation Results Infographic',
         fontFamily: 'Sarabun',
         titleMainSize: 28,
+        titleMainOffsetX: 36,
+        titleMainOffsetY: 58,
         titleSubSize: 54,
         titleSubLineHeight: 58,
         titleSubMaxLines: 2,
+        titleSubOffsetX: 36,
+        titleSubOffsetY: 118,
         titleDateSize: 24,
+        titleDateOffsetX: 36,
+        titleDateOffsetY: 182,
         sectionTitleSize: 30,
         headerBg: '#0f172a',
         titleMainColor: '#93c5fd',
@@ -1125,10 +1131,16 @@
         titleSub: document.getElementById('info_titleSub').value.trim() || defaults.titleSub,
         fontFamily: document.getElementById('info_fontFamily').value || defaults.fontFamily,
         titleMainSize: Number(document.getElementById('info_titleMainSize').value) || defaults.titleMainSize,
+        titleMainOffsetX: Number(document.getElementById('info_titleMainOffsetX').value) || defaults.titleMainOffsetX,
+        titleMainOffsetY: Number(document.getElementById('info_titleMainOffsetY').value) || defaults.titleMainOffsetY,
         titleSubSize: Number(document.getElementById('info_titleSubSize').value) || defaults.titleSubSize,
         titleSubLineHeight: Number(document.getElementById('info_titleSubLineHeight').value) || defaults.titleSubLineHeight,
         titleSubMaxLines: Number(document.getElementById('info_titleSubMaxLines').value) || defaults.titleSubMaxLines,
+        titleSubOffsetX: Number(document.getElementById('info_titleSubOffsetX').value) || defaults.titleSubOffsetX,
+        titleSubOffsetY: Number(document.getElementById('info_titleSubOffsetY').value) || defaults.titleSubOffsetY,
         titleDateSize: Number(document.getElementById('info_titleDateSize').value) || defaults.titleDateSize,
+        titleDateOffsetX: Number(document.getElementById('info_titleDateOffsetX').value) || defaults.titleDateOffsetX,
+        titleDateOffsetY: Number(document.getElementById('info_titleDateOffsetY').value) || defaults.titleDateOffsetY,
         sectionTitleSize: Number(document.getElementById('info_sectionTitleSize').value) || defaults.sectionTitleSize,
         headerBg: document.getElementById('info_headerBg').value || defaults.headerBg,
         titleMainColor: document.getElementById('info_titleMainColor').value || defaults.titleMainColor,
@@ -1208,7 +1220,9 @@
       if (!form) return;
       const controls = [
         'info_titleMain', 'info_titleSub', 'info_fontFamily', 'info_titleMainSize', 'info_titleSubSize',
+        'info_titleMainOffsetX', 'info_titleMainOffsetY',
         'info_titleSubLineHeight', 'info_titleSubMaxLines', 'info_titleDateSize', 'info_sectionTitleSize', 'info_headerBg', 'info_titleMainColor',
+        'info_titleSubOffsetX', 'info_titleSubOffsetY', 'info_titleDateOffsetX', 'info_titleDateOffsetY',
         'info_titleSubColor', 'info_backgroundMode', 'info_backgroundColorA', 'info_backgroundColorB',
         'info_backgroundImageUrl'
       ];
@@ -1352,24 +1366,24 @@
 
     function drawInfographicHeader(ctx, x, y, width, data, theme) {
       drawRoundRect(ctx, x, y, width, 220, 30, theme.headerBg || '#0f172a');
+      const mainX = x + (Number(theme.titleMainOffsetX) || 36);
+      const mainY = y + (Number(theme.titleMainOffsetY) || 58);
+      const subX = x + (Number(theme.titleSubOffsetX) || 36);
+      const subY = y + (Number(theme.titleSubOffsetY) || 118);
+      const dateX = x + (Number(theme.titleDateOffsetX) || 36);
+      const dateY = y + (Number(theme.titleDateOffsetY) || 182);
+
       ctx.fillStyle = theme.titleMainColor || '#93c5fd';
       ctx.font = canvasFont(theme, 700, Number(theme.titleMainSize) || 28);
-      ctx.fillText(theme.titleMain || 'รายงานผลการประเมิน', x + 36, y + 58);
+      ctx.fillText(theme.titleMain || 'รายงานผลการประเมิน', mainX, mainY);
       ctx.fillStyle = theme.titleSubColor || '#ffffff';
       ctx.font = canvasFont(theme, 700, Number(theme.titleSubSize) || 54);
       const subLineHeight = Number(theme.titleSubLineHeight) || 58;
       const subMaxLines = Number(theme.titleSubMaxLines) || 2;
-      wrapCanvasText(ctx, theme.titleSub || 'Evaluation Results Infographic', x + 36, y + 118, width - 72, subLineHeight, subMaxLines);
+      wrapCanvasText(ctx, theme.titleSub || 'Evaluation Results Infographic', subX, subY, width - 72, subLineHeight, subMaxLines);
       ctx.fillStyle = '#cbd5e1';
       ctx.font = canvasFont(theme, 400, Number(theme.titleDateSize) || 24);
-      ctx.fillText(`สร้างเมื่อ ${formatThaiExportDate(new Date())}`, x + 36, y + 182);
-      ctx.fillStyle = '#fbbf24';
-      ctx.font = canvasFont(theme, 700, 76);
-      ctx.textAlign = 'right';
-      ctx.fillText(String(data.totalResponses || 0), x + width - 42, y + 104);
-      ctx.fillStyle = '#e2e8f0';
-      ctx.font = canvasFont(theme, 500, 24);
-      ctx.fillText('ผู้ตอบ', x + width - 42, y + 140);
+      ctx.fillText(`สร้างเมื่อ ${formatThaiExportDate(new Date())}`, dateX, dateY);
       ctx.textAlign = 'left';
     }
 
@@ -1842,6 +1856,17 @@
                 <input id="info_titleMainSize" type="number" min="18" max="72" value="${escapeHtml(String(inf.titleMainSize))}" class="w-full px-3 py-2 border rounded-lg">
               </div>
               <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">หัวหลักแกน X</label>
+                <input id="info_titleMainOffsetX" type="number" min="-300" max="800" value="${escapeHtml(String(inf.titleMainOffsetX || 36))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">หัวหลักแกน Y</label>
+                <input id="info_titleMainOffsetY" type="number" min="-100" max="300" value="${escapeHtml(String(inf.titleMainOffsetY || 58))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">ขนาดหัวรอง</label>
                 <input id="info_titleSubSize" type="number" min="20" max="96" value="${escapeHtml(String(inf.titleSubSize))}" class="w-full px-3 py-2 border rounded-lg">
               </div>
@@ -1854,8 +1879,31 @@
                 <input id="info_titleSubMaxLines" type="number" min="1" max="5" value="${escapeHtml(String(inf.titleSubMaxLines || 2))}" class="w-full px-3 py-2 border rounded-lg">
               </div>
               <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">หัวรองแกน X</label>
+                <input id="info_titleSubOffsetX" type="number" min="-300" max="800" value="${escapeHtml(String(inf.titleSubOffsetX || 36))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">หัวรองแกน Y</label>
+                <input id="info_titleSubOffsetY" type="number" min="-100" max="350" value="${escapeHtml(String(inf.titleSubOffsetY || 118))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">ขนาดหัวข้อส่วน</label>
                 <input id="info_sectionTitleSize" type="number" min="18" max="56" value="${escapeHtml(String(inf.sectionTitleSize))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ขนาดวันที่</label>
+                <input id="info_titleDateSize" type="number" min="12" max="36" value="${escapeHtml(String(inf.titleDateSize))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">วันที่แกน X</label>
+                <input id="info_titleDateOffsetX" type="number" min="-300" max="800" value="${escapeHtml(String(inf.titleDateOffsetX || 36))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">วันที่แกน Y</label>
+                <input id="info_titleDateOffsetY" type="number" min="-100" max="350" value="${escapeHtml(String(inf.titleDateOffsetY || 182))}" class="w-full px-3 py-2 border rounded-lg">
               </div>
             </div>
 
@@ -1871,10 +1919,6 @@
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">สีหัวรอง</label>
                 <input id="info_titleSubColor" type="color" value="${escapeHtml(inf.titleSubColor)}" class="w-full h-10 border rounded-lg">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">ขนาดวันที่</label>
-                <input id="info_titleDateSize" type="number" min="12" max="36" value="${escapeHtml(String(inf.titleDateSize))}" class="w-full px-3 py-2 border rounded-lg">
               </div>
             </div>
 
