@@ -1069,14 +1069,16 @@
     }
 
     function buildResultsInfographicCanvas(data) {
-      const width = 1080;
-      const padding = 64;
+      const width = 1240;
+      const height = 1754;
+      const padding = 70;
       const contentWidth = width - (padding * 2);
       const part1 = (data.part1 || []).slice(0, 4);
       const categories = ((data.part2 && data.part2.byCategory) || []).slice(0, 8);
       const comments = (data.part3 || []).reduce((sum, item) => sum + ((item.answers || []).length), 0);
-      const topAnswerCardStep = 198;
-      const height = 980 + (part1.length * topAnswerCardStep) + (categories.length * 64);
+      const categoryStep = 58;
+      const topAnswerCardHeight = 158;
+      const topAnswerCardGap = 24;
       const canvas = document.createElement('canvas');
       const scale = 2;
       canvas.width = width * scale;
@@ -1095,35 +1097,41 @@
       y += 260;
 
       const overall = data.part2 && data.part2.overall ? data.part2.overall : {};
-      drawMetricCard(ctx, padding, y, 300, 150, 'ผู้ตอบทั้งหมด', `${data.totalResponses || 0}`, 'คน', '#2563eb');
-      drawMetricCard(ctx, padding + 324, y, 300, 150, 'ค่าเฉลี่ยรวม', numberText(overall.mean) || '-', 'คะแนน', '#059669');
-      drawMetricCard(ctx, padding + 648, y, 304, 150, 'ระดับผลรวม', overall.interpret || '-', `S.D. ${numberText(overall.sd) || '-'}`, '#7c3aed');
-      y += 198;
+      const metricGap = 24;
+      const metricWidth = (contentWidth - (metricGap * 2)) / 3;
+      drawMetricCard(ctx, padding, y, metricWidth, 140, 'ผู้ตอบทั้งหมด', `${data.totalResponses || 0}`, 'คน', '#2563eb');
+      drawMetricCard(ctx, padding + metricWidth + metricGap, y, metricWidth, 140, 'ค่าเฉลี่ยรวม', numberText(overall.mean) || '-', 'คะแนน', '#059669');
+      drawMetricCard(ctx, padding + ((metricWidth + metricGap) * 2), y, metricWidth, 140, 'ระดับผลรวม', overall.interpret || '-', `S.D. ${numberText(overall.sd) || '-'}`, '#7c3aed');
+      y += 178;
 
       drawSectionTitle(ctx, padding, y, 'สรุปคะแนนรายด้าน');
       y += 48;
       categories.forEach((item, index) => {
         const percent = Math.max(0, Math.min(100, (Number(item.mean) || 0) / 5 * 100));
         drawCategoryBar(ctx, padding, y, contentWidth, item.category || `ด้านที่ ${index + 1}`, numberText(item.mean) || '-', item.interpret || '', percent, index);
-        y += 64;
+        y += categoryStep;
       });
       if (!categories.length) {
         drawEmptyLine(ctx, padding, y, contentWidth, 'ไม่มีข้อมูลคะแนนรายด้าน');
-        y += 64;
+        y += categoryStep;
       }
       y += 28;
 
       drawSectionTitle(ctx, padding, y, 'ข้อมูลทั่วไปที่ตอบมากที่สุด');
       y += 48;
-      part1.forEach(item => {
+      const topAnswerCardWidth = (contentWidth - topAnswerCardGap) / 2;
+      part1.forEach((item, index) => {
         const options = (item.options || []).slice().sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0));
         const top = options[0] || { label: '-', count: 0, percent: 0 };
-        drawTopAnswerCard(ctx, padding, y, contentWidth, item.questionText || '-', top, item.answered || 0);
-        y += topAnswerCardStep;
+        const col = index % 2;
+        const row = Math.floor(index / 2);
+        drawTopAnswerCard(ctx, padding + (col * (topAnswerCardWidth + topAnswerCardGap)), y + (row * (topAnswerCardHeight + topAnswerCardGap)), topAnswerCardWidth, topAnswerCardHeight, item.questionText || '-', top, item.answered || 0);
       });
       if (!part1.length) {
         drawEmptyLine(ctx, padding, y, contentWidth, 'ไม่มีข้อมูลทั่วไป');
         y += 64;
+      } else {
+        y += Math.ceil(part1.length / 2) * (topAnswerCardHeight + topAnswerCardGap);
       }
       y += 16;
 
@@ -1194,34 +1202,34 @@
       const color = colors[index % colors.length];
       ctx.fillStyle = '#334155';
       ctx.font = '500 22px Sarabun, sans-serif';
-      wrapCanvasText(ctx, label, x, y + 24, width - 170, 24, 1);
+      wrapCanvasText(ctx, label, x, y + 24, width - 260, 24, 1);
       ctx.textAlign = 'right';
       ctx.fillStyle = color;
       ctx.font = '700 26px Sarabun, sans-serif';
       ctx.fillText(mean, x + width, y + 25);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '400 18px Sarabun, sans-serif';
+      ctx.fillText(interpret, x + width - 54, y + 25);
       ctx.textAlign = 'left';
       drawRoundRect(ctx, x, y + 36, width, 16, 8, '#e2e8f0');
       drawRoundRect(ctx, x, y + 36, width * percent / 100, 16, 8, color);
-      ctx.fillStyle = '#64748b';
-      ctx.font = '400 18px Sarabun, sans-serif';
-      ctx.fillText(interpret, x, y + 80);
     }
 
-    function drawTopAnswerCard(ctx, x, y, width, item, top, answered) {
-      drawRoundRect(ctx, x, y, width, 168, 22, '#ffffff');
+    function drawTopAnswerCard(ctx, x, y, width, height, item, top, answered) {
+      drawRoundRect(ctx, x, y, width, height, 22, '#ffffff');
       ctx.fillStyle = '#0f172a';
-      ctx.font = '600 22px Sarabun, sans-serif';
-      wrapCanvasText(ctx, item, x + 28, y + 36, width - 390, 28, 3);
+      ctx.font = '600 20px Sarabun, sans-serif';
+      wrapCanvasText(ctx, item, x + 24, y + 34, width - 48, 26, 2);
       ctx.fillStyle = '#64748b';
       ctx.font = '400 18px Sarabun, sans-serif';
-      ctx.fillText(`n=${answered}`, x + 28, y + 138);
-      ctx.textAlign = 'right';
+      ctx.fillText(`n=${answered}`, x + 24, y + height - 28);
       ctx.fillStyle = '#2563eb';
-      ctx.font = '700 30px Sarabun, sans-serif';
-      wrapCanvasText(ctx, String(top.label || '-'), x + width - 28, y + 44, 310, 34, 3, 'right');
+      ctx.font = '700 28px Sarabun, sans-serif';
+      wrapCanvasText(ctx, String(top.label || '-'), x + 24, y + 92, width - 48, 30, 2);
       ctx.fillStyle = '#475569';
       ctx.font = '500 20px Sarabun, sans-serif';
-      ctx.fillText(`${top.count || 0} คน (${top.percent || 0}%)`, x + width - 28, y + 138);
+      ctx.textAlign = 'right';
+      ctx.fillText(`${top.count || 0} คน (${top.percent || 0}%)`, x + width - 24, y + height - 28);
       ctx.textAlign = 'left';
     }
 
