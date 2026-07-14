@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Sarabun', sans-serif; }
     .fade-in { animation: fadeIn 0.3s ease-in; }
@@ -1042,13 +1042,17 @@
       XLSX.writeFile(workbook, `evaluation-results-${stamp}.xlsx`);
     }
 
+    const INFOGRAPHIC_SETTINGS_KEY = 'cert_infographic_settings_v1';
+    let infographicPreviewTimer = null;
+    let infographicPreviewToken = 0;
+
     async function exportResultsInfographic() {
       if (!resultsData || !resultsData.totalResponses) { showToast('ยังไม่มีข้อมูลผลการประเมินสำหรับส่งออก', 'error'); return; }
 
       try {
         showLoading('กำลังสร้างภาพ Infographic...');
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
-        const canvas = buildResultsInfographicCanvas(resultsData);
+        const canvas = await buildResultsInfographicCanvas(resultsData);
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
         if (!blob) throw new Error('สร้างไฟล์ภาพไม่สำเร็จ');
 
@@ -1081,11 +1085,164 @@
       }
     }
 
-    function buildResultsInfographicCanvas(data) {
+    function getDefaultInfographicSettings() {
+      return {
+        titleMain: 'รายงานผลการประเมิน',
+        titleSub: 'Evaluation Results Infographic',
+        fontFamily: 'Sarabun',
+        titleMainSize: 28,
+        titleSubSize: 54,
+        titleDateSize: 24,
+        sectionTitleSize: 30,
+        headerBg: '#0f172a',
+        titleMainColor: '#93c5fd',
+        titleSubColor: '#ffffff',
+        backgroundMode: 'gradient',
+        backgroundColorA: '#dbeafe',
+        backgroundColorB: '#dcfce7',
+        backgroundImageUrl: ''
+      };
+    }
+
+    function loadInfographicSettings() {
+      const defaults = getDefaultInfographicSettings();
+      try {
+        const raw = localStorage.getItem(INFOGRAPHIC_SETTINGS_KEY);
+        if (!raw) return defaults;
+        const parsed = JSON.parse(raw);
+        return Object.assign({}, defaults, parsed || {});
+      } catch (_) {
+        return defaults;
+      }
+    }
+
+    function getInfographicSettingsFromForm() {
+      const defaults = getDefaultInfographicSettings();
+      return {
+        titleMain: document.getElementById('info_titleMain').value.trim() || defaults.titleMain,
+        titleSub: document.getElementById('info_titleSub').value.trim() || defaults.titleSub,
+        fontFamily: document.getElementById('info_fontFamily').value || defaults.fontFamily,
+        titleMainSize: Number(document.getElementById('info_titleMainSize').value) || defaults.titleMainSize,
+        titleSubSize: Number(document.getElementById('info_titleSubSize').value) || defaults.titleSubSize,
+        titleDateSize: Number(document.getElementById('info_titleDateSize').value) || defaults.titleDateSize,
+        sectionTitleSize: Number(document.getElementById('info_sectionTitleSize').value) || defaults.sectionTitleSize,
+        headerBg: document.getElementById('info_headerBg').value || defaults.headerBg,
+        titleMainColor: document.getElementById('info_titleMainColor').value || defaults.titleMainColor,
+        titleSubColor: document.getElementById('info_titleSubColor').value || defaults.titleSubColor,
+        backgroundMode: document.getElementById('info_backgroundMode').value || defaults.backgroundMode,
+        backgroundColorA: document.getElementById('info_backgroundColorA').value || defaults.backgroundColorA,
+        backgroundColorB: document.getElementById('info_backgroundColorB').value || defaults.backgroundColorB,
+        backgroundImageUrl: document.getElementById('info_backgroundImageUrl').value.trim()
+      };
+    }
+
+    function saveInfographicSettings(event, silent = false) {
+      if (event) event.preventDefault();
+      const settings = getInfographicSettingsFromForm();
+      localStorage.setItem(INFOGRAPHIC_SETTINGS_KEY, JSON.stringify(settings));
+      if (!silent) showToast('บันทึกการตั้งค่า Infographic แล้ว');
+    }
+
+    function resetInfographicSettings() {
+      localStorage.removeItem(INFOGRAPHIC_SETTINGS_KEY);
+      showToast('รีเซ็ตค่า Infographic แล้ว', 'info');
+      loadSettings();
+    }
+
+    function scheduleInfographicLivePreview() {
+      if (infographicPreviewTimer) clearTimeout(infographicPreviewTimer);
+      infographicPreviewTimer = setTimeout(() => {
+        renderInfographicLivePreview();
+      }, 240);
+    }
+
+    async function getInfographicPreviewData() {
+      if (resultsData && resultsData.totalResponses !== undefined) return resultsData;
+      const res = await callApiCached('getResults');
+      if (!res.success) throw new Error(res.message || 'โหลดข้อมูลผลประเมินไม่สำเร็จ');
+      resultsData = res;
+      return res;
+    }
+
+    async function renderInfographicLivePreview() {
+      const previewImage = document.getElementById('info_previewImage');
+      const previewEmpty = document.getElementById('info_previewEmpty');
+      const previewStatus = document.getElementById('info_previewStatus');
+      if (!previewImage || !previewEmpty || !previewStatus) return;
+
+      const token = ++infographicPreviewToken;
+      previewStatus.textContent = 'กำลังอัปเดตตัวอย่าง...';
+
+      try {
+        saveInfographicSettings(null, true);
+        const data = await getInfographicPreviewData();
+        if (!data.totalResponses) {
+          previewImage.classList.add('hidden');
+          previewEmpty.classList.remove('hidden');
+          previewEmpty.textContent = 'ยังไม่มีข้อมูลผลการประเมินสำหรับแสดงตัวอย่าง';
+          previewStatus.textContent = 'พร้อมใช้งาน';
+          return;
+        }
+
+        const canvas = await buildResultsInfographicCanvas(data);
+        if (token !== infographicPreviewToken) return;
+        previewImage.src = canvas.toDataURL('image/png');
+        previewImage.classList.remove('hidden');
+        previewEmpty.classList.add('hidden');
+        previewStatus.textContent = `อัปเดตล่าสุด ${new Date().toLocaleTimeString('th-TH')}`;
+      } catch (err) {
+        if (token !== infographicPreviewToken) return;
+        previewImage.classList.add('hidden');
+        previewEmpty.classList.remove('hidden');
+        previewEmpty.textContent = err.message || 'แสดงตัวอย่างไม่สำเร็จ';
+        previewStatus.textContent = 'เกิดข้อผิดพลาด';
+      }
+    }
+
+    function initInfographicLivePreview() {
+      const form = document.getElementById('infographicSettingsForm');
+      if (!form) return;
+      const controls = [
+        'info_titleMain', 'info_titleSub', 'info_fontFamily', 'info_titleMainSize', 'info_titleSubSize',
+        'info_titleDateSize', 'info_sectionTitleSize', 'info_headerBg', 'info_titleMainColor',
+        'info_titleSubColor', 'info_backgroundMode', 'info_backgroundColorA', 'info_backgroundColorB',
+        'info_backgroundImageUrl'
+      ];
+
+      controls.forEach(id => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        const eventName = input.tagName === 'SELECT' ? 'change' : 'input';
+        input.addEventListener(eventName, scheduleInfographicLivePreview);
+        if (eventName !== 'change') input.addEventListener('change', scheduleInfographicLivePreview);
+      });
+
+      const refreshBtn = document.getElementById('info_previewRefreshBtn');
+      if (refreshBtn) refreshBtn.addEventListener('click', () => renderInfographicLivePreview());
+
+      renderInfographicLivePreview();
+    }
+
+    function canvasFont(theme, weight, sizePx) {
+      return `${weight} ${sizePx}px ${theme.fontFamily || 'Sarabun'}, sans-serif`;
+    }
+
+    function loadCanvasImage(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('โหลดภาพพื้นหลังไม่สำเร็จ'));
+        img.src = url;
+      });
+    }
+
+    async function buildResultsInfographicCanvas(data) {
       const width = 1240;
       const height = 1754;
       const padding = 70;
       const contentWidth = width - (padding * 2);
+      const theme = loadInfographicSettings();
       const part1 = (data.part1 || []).slice(0, 4);
       const categories = ((data.part2 && data.part2.byCategory) || []).slice(0, 8);
       const comments = (data.part3 || []).reduce((sum, item) => sum + ((item.answers || []).length), 0);
@@ -1103,21 +1260,21 @@
       ctx.scale(scale, scale);
       ctx.fillStyle = '#f8fafc';
       ctx.fillRect(0, 0, width, height);
-      drawInfographicBackground(ctx, width, height);
+      await drawInfographicBackground(ctx, width, height, theme);
 
       let y = 56;
-      drawInfographicHeader(ctx, padding, y, contentWidth, data);
+      drawInfographicHeader(ctx, padding, y, contentWidth, data, theme);
       y += 260;
 
       const overall = data.part2 && data.part2.overall ? data.part2.overall : {};
       const metricGap = 24;
       const metricWidth = (contentWidth - (metricGap * 2)) / 3;
-      drawMetricCard(ctx, padding, y, metricWidth, 140, 'ผู้ตอบทั้งหมด', `${data.totalResponses || 0}`, 'คน', '#2563eb');
-      drawMetricCard(ctx, padding + metricWidth + metricGap, y, metricWidth, 140, 'ค่าเฉลี่ยรวม', numberText(overall.mean) || '-', 'คะแนน', '#059669');
-      drawMetricCard(ctx, padding + ((metricWidth + metricGap) * 2), y, metricWidth, 140, 'ระดับผลรวม', overall.interpret || '-', `S.D. ${numberText(overall.sd) || '-'}`, '#7c3aed');
+      drawMetricCard(ctx, padding, y, metricWidth, 140, 'ผู้ตอบทั้งหมด', `${data.totalResponses || 0}`, 'คน', '#2563eb', theme);
+      drawMetricCard(ctx, padding + metricWidth + metricGap, y, metricWidth, 140, 'ค่าเฉลี่ยรวม', numberText(overall.mean) || '-', 'คะแนน', '#059669', theme);
+      drawMetricCard(ctx, padding + ((metricWidth + metricGap) * 2), y, metricWidth, 140, 'ระดับผลรวม', overall.interpret || '-', `S.D. ${numberText(overall.sd) || '-'}`, '#7c3aed', theme);
       y += 178;
 
-      drawSectionTitle(ctx, padding, y, 'ข้อมูลทั่วไป');
+      drawSectionTitle(ctx, padding, y, 'ข้อมูลทั่วไป', theme);
       y += 48;
       const topAnswerCardWidth = (contentWidth - topAnswerCardGap) / 2;
       part1.forEach((item, index) => {
@@ -1125,7 +1282,7 @@
         const top = options[0] || { label: '-', count: 0, percent: 0 };
         const col = index % 2;
         const row = Math.floor(index / 2);
-        drawTopAnswerCard(ctx, padding + (col * (topAnswerCardWidth + topAnswerCardGap)), y + (row * (topAnswerCardHeight + topAnswerCardGap)), topAnswerCardWidth, topAnswerCardHeight, item.questionText || '-', top);
+        drawTopAnswerCard(ctx, padding + (col * (topAnswerCardWidth + topAnswerCardGap)), y + (row * (topAnswerCardHeight + topAnswerCardGap)), topAnswerCardWidth, topAnswerCardHeight, item.questionText || '-', top, theme);
       });
       if (!part1.length) {
         drawEmptyLine(ctx, padding, y, contentWidth, 'ไม่มีข้อมูลทั่วไป');
@@ -1135,27 +1292,50 @@
       }
       y += 16;
 
-      drawSectionTitle(ctx, padding, y, 'สรุปรายด้าน');
+      drawSectionTitle(ctx, padding, y, 'สรุปรายด้าน', theme);
       y += 48;
       if (!categories.length) {
         drawEmptyLine(ctx, padding, y, contentWidth, 'ไม่มีข้อมูลคะแนนรายด้าน');
         y += 64;
       } else {
-        y += drawCategorySummaryTable(ctx, padding, y, contentWidth, categories);
+        y += drawCategorySummaryTable(ctx, padding, y, contentWidth, categories, theme);
       }
       y += 16;
 
-      drawFooterSummary(ctx, padding, y, contentWidth, comments, commentSummary);
+      drawFooterSummary(ctx, padding, y, contentWidth, comments, commentSummary, theme);
       return canvas;
     }
 
-    function drawInfographicBackground(ctx, width, height) {
-      const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, '#dbeafe');
-      gradient.addColorStop(0.45, '#f8fafc');
-      gradient.addColorStop(1, '#dcfce7');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
+    async function drawInfographicBackground(ctx, width, height, theme) {
+      if (theme.backgroundMode === 'image' && theme.backgroundImageUrl) {
+        try {
+          const bg = await loadCanvasImage(theme.backgroundImageUrl);
+          const scale = Math.max(width / bg.width, height / bg.height);
+          const drawW = bg.width * scale;
+          const drawH = bg.height * scale;
+          const drawX = (width - drawW) / 2;
+          const drawY = (height - drawH) / 2;
+          ctx.drawImage(bg, drawX, drawY, drawW, drawH);
+          ctx.fillStyle = 'rgba(255,255,255,0.15)';
+          ctx.fillRect(0, 0, width, height);
+        } catch (_) {
+          const fallback = ctx.createLinearGradient(0, 0, width, height);
+          fallback.addColorStop(0, theme.backgroundColorA || '#dbeafe');
+          fallback.addColorStop(1, theme.backgroundColorB || '#dcfce7');
+          ctx.fillStyle = fallback;
+          ctx.fillRect(0, 0, width, height);
+        }
+      } else if (theme.backgroundMode === 'solid') {
+        ctx.fillStyle = theme.backgroundColorA || '#f8fafc';
+        ctx.fillRect(0, 0, width, height);
+      } else {
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, theme.backgroundColorA || '#dbeafe');
+        gradient.addColorStop(0.45, '#f8fafc');
+        gradient.addColorStop(1, theme.backgroundColorB || '#dcfce7');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+      }
       ctx.fillStyle = 'rgba(37, 99, 235, 0.12)';
       ctx.beginPath();
       ctx.arc(930, 92, 170, 0, Math.PI * 2);
@@ -1166,87 +1346,118 @@
       ctx.fill();
     }
 
-    function drawInfographicHeader(ctx, x, y, width, data) {
-      drawRoundRect(ctx, x, y, width, 220, 30, '#0f172a');
-      ctx.fillStyle = '#93c5fd';
-      ctx.font = '700 28px Sarabun, sans-serif';
-      ctx.fillText('รายงานผลการประเมิน', x + 36, y + 58);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '700 54px Sarabun, sans-serif';
-      wrapCanvasText(ctx, 'Evaluation Results Infographic', x + 36, y + 118, width - 72, 58, 2);
+    function drawInfographicHeader(ctx, x, y, width, data, theme) {
+      drawRoundRect(ctx, x, y, width, 220, 30, theme.headerBg || '#0f172a');
+      ctx.fillStyle = theme.titleMainColor || '#93c5fd';
+      ctx.font = canvasFont(theme, 700, Number(theme.titleMainSize) || 28);
+      ctx.fillText(theme.titleMain || 'รายงานผลการประเมิน', x + 36, y + 58);
+      ctx.fillStyle = theme.titleSubColor || '#ffffff';
+      ctx.font = canvasFont(theme, 700, Number(theme.titleSubSize) || 54);
+      wrapCanvasText(ctx, theme.titleSub || 'Evaluation Results Infographic', x + 36, y + 118, width - 72, 58, 2);
       ctx.fillStyle = '#cbd5e1';
-      ctx.font = '400 24px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme, 400, Number(theme.titleDateSize) || 24);
       ctx.fillText(`สร้างเมื่อ ${formatThaiExportDate(new Date())}`, x + 36, y + 182);
       ctx.fillStyle = '#fbbf24';
-      ctx.font = '700 76px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme, 700, 76);
       ctx.textAlign = 'right';
       ctx.fillText(String(data.totalResponses || 0), x + width - 42, y + 104);
       ctx.fillStyle = '#e2e8f0';
-      ctx.font = '500 24px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme, 500, 24);
       ctx.fillText('ผู้ตอบ', x + width - 42, y + 140);
       ctx.textAlign = 'left';
     }
 
-    function drawMetricCard(ctx, x, y, width, height, label, value, unit, color) {
+    function drawMetricCard(ctx, x, y, width, height, label, value, unit, color, theme) {
       drawRoundRect(ctx, x, y, width, height, 24, '#ffffff');
       drawRoundRect(ctx, x, y, 10, height, 5, color);
       ctx.fillStyle = '#64748b';
-      ctx.font = '500 22px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 500, 22);
       ctx.fillText(label, x + 30, y + 42);
       ctx.fillStyle = color;
-      ctx.font = value.length > 10 ? '700 32px Sarabun, sans-serif' : '700 52px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 700, value.length > 10 ? 32 : 52);
       wrapCanvasText(ctx, value, x + 30, y + 96, width - 60, 44, 2);
       ctx.fillStyle = '#475569';
-      ctx.font = '400 20px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 400, 20);
       ctx.fillText(unit, x + 30, y + height - 26);
     }
 
-    function drawSectionTitle(ctx, x, y, text) {
+    function drawSectionTitle(ctx, x, y, text, theme) {
       ctx.fillStyle = '#0f172a';
-      ctx.font = '700 30px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 700, Number((theme && theme.sectionTitleSize) || 30));
       ctx.fillText(text, x, y + 30);
     }
 
-    function drawCategorySummaryTable(ctx, x, y, width, categories) {
+    function drawCategorySummaryTable(ctx, x, y, width, categories, theme) {
       const headerHeight = 48;
-      const rowHeight = 50;
+      const minRowHeight = 50;
+      const bodyLineHeight = 24;
       const borderColor = '#cbd5e1';
       const rowCount = categories.length;
-      const tableHeight = headerHeight + (rowCount * rowHeight);
       const colWidths = [90, 360, 130, 160, 120, width - (90 + 360 + 130 + 160 + 120)];
       const headers = ['ลำดับ', 'ด้าน', 'จำนวน', 'ค่าเฉลี่ย', 'SD', 'ระดับคุณภาพ'];
+
+      const rowMeta = categories.map((item, index) => {
+        ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 500, 20);
+        const wrappedCategory = getCanvasWrappedLines(ctx, String(item.category || '-'), colWidths[1] - 24, 4);
+        const textBlockHeight = Math.max(1, wrappedCategory.length) * bodyLineHeight;
+        const rowHeight = Math.max(minRowHeight, textBlockHeight + 18);
+        return {
+          index,
+          rowHeight,
+          wrappedCategory,
+          values: [
+            String(index + 1),
+            String(item.category || '-'),
+            String(item.n || 0),
+            numberText(item.mean) || '-',
+            numberText(item.sd) || '-',
+            String(item.interpret || '-')
+          ]
+        };
+      });
+
+      const bodyHeight = rowMeta.reduce((sum, row) => sum + row.rowHeight, 0);
+      const tableHeight = headerHeight + bodyHeight;
 
       drawRoundRect(ctx, x, y, width, tableHeight, 18, '#ffffff');
       drawRoundRect(ctx, x, y, width, headerHeight, 18, '#e2e8f0');
 
       let cursorX = x;
+      ctx.textBaseline = 'middle';
       headers.forEach((header, i) => {
         ctx.fillStyle = '#334155';
-        ctx.font = '700 20px Sarabun, sans-serif';
-        ctx.textAlign = i === 1 ? 'left' : 'center';
-        const textX = i === 1 ? cursorX + 16 : cursorX + (colWidths[i] / 2);
-        ctx.fillText(header, textX, y + 31);
+        ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 700, 20);
+        ctx.textAlign = 'center';
+        const textX = cursorX + (colWidths[i] / 2);
+        ctx.fillText(header, textX, y + (headerHeight / 2));
         cursorX += colWidths[i];
       });
+      ctx.textBaseline = 'alphabetic';
 
-      for (let i = 0; i <= rowCount; i++) {
-        const yPos = y + headerHeight + (i * rowHeight);
+      let rowY = y + headerHeight;
+      rowMeta.forEach((row, idx) => {
+        const yPos = rowY + row.rowHeight;
+        if (idx % 2 === 1) {
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(x + 1, rowY + 1, width - 2, row.rowHeight - 2);
+        }
         ctx.strokeStyle = borderColor;
         ctx.lineWidth = 1.4;
         ctx.beginPath();
         ctx.moveTo(x, yPos);
         ctx.lineTo(x + width, yPos);
         ctx.stroke();
-      }
+        rowY = yPos;
+      });
 
-      // วาดเส้นบนหัวตารางและเส้นล่างสุดให้ครบทุกแถวอย่างชัดเจน
+      // เส้นบนหัวตารางและเส้นคั่นหัวตาราง
       ctx.strokeStyle = borderColor;
       ctx.lineWidth = 1.4;
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x + width, y);
-      ctx.moveTo(x, y + tableHeight);
-      ctx.lineTo(x + width, y + tableHeight);
+      ctx.moveTo(x, y + headerHeight);
+      ctx.lineTo(x + width, y + headerHeight);
       ctx.stroke();
 
       let lineX = x;
@@ -1264,72 +1475,41 @@
       ctx.lineWidth = 1.4;
       ctx.strokeRect(x, y, width, tableHeight);
 
-      categories.forEach((item, index) => {
-        const rowTop = y + headerHeight + (index * rowHeight);
-        if (index % 2 === 1) {
-          ctx.fillStyle = '#f8fafc';
-          ctx.fillRect(x + 1, rowTop + 1, width - 2, rowHeight - 2);
-        }
-
-        const values = [
-          String(index + 1),
-          String(item.category || '-'),
-          String(item.n || 0),
-          numberText(item.mean) || '-',
-          numberText(item.sd) || '-',
-          String(item.interpret || '-')
-        ];
-
+      rowY = y + headerHeight;
+      rowMeta.forEach(row => {
+        const rowTop = rowY;
+        ctx.textBaseline = 'top';
         let valueX = x;
-        values.forEach((value, colIndex) => {
+        row.values.forEach((value, colIndex) => {
           ctx.fillStyle = '#0f172a';
-          ctx.font = colIndex === 1 ? '500 20px Sarabun, sans-serif' : '400 20px Sarabun, sans-serif';
+          ctx.font = colIndex === 1
+            ? canvasFont(theme || getDefaultInfographicSettings(), 500, 20)
+            : canvasFont(theme || getDefaultInfographicSettings(), 400, 20);
           ctx.textAlign = colIndex === 1 ? 'left' : 'center';
           const textX = colIndex === 1 ? valueX + 16 : valueX + (colWidths[colIndex] / 2);
           if (colIndex === 1) {
-            wrapCanvasText(ctx, value, textX, rowTop + 31, colWidths[colIndex] - 24, 24, 1, 'left');
+            row.wrappedCategory.forEach((line, idx) => {
+              ctx.fillText(line, textX, rowTop + 10 + (idx * bodyLineHeight));
+            });
           } else {
-            ctx.fillText(value, textX, rowTop + 31);
+            ctx.fillText(value, textX, rowTop + 10);
           }
           valueX += colWidths[colIndex];
         });
+        rowY += row.rowHeight;
       });
-
-      // วาดเส้นทับอีกครั้งหลังลงพื้นสลับสี เพื่อไม่ให้เส้นแนวตั้งหาย
-      for (let i = 0; i <= rowCount; i++) {
-        const yPos = y + headerHeight + (i * rowHeight);
-        ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(x, yPos);
-        ctx.lineTo(x + width, yPos);
-        ctx.stroke();
-      }
-      let gridX = x;
-      colWidths.forEach(colWidth => {
-        gridX += colWidth;
-        ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(gridX, y);
-        ctx.lineTo(gridX, y + tableHeight);
-        ctx.stroke();
-      });
-      ctx.strokeStyle = borderColor;
-      ctx.lineWidth = 1.4;
-      ctx.strokeRect(x, y, width, tableHeight);
-
+      ctx.textBaseline = 'alphabetic';
       ctx.textAlign = 'left';
       return tableHeight;
     }
 
-    function drawTopAnswerCard(ctx, x, y, width, height, item, top) {
+    function drawTopAnswerCard(ctx, x, y, width, height, item, top, theme) {
       drawRoundRect(ctx, x, y, width, height, 22, '#ffffff');
       ctx.fillStyle = '#0f172a';
-      ctx.font = '600 20px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 600, 20);
       wrapCanvasText(ctx, item, x + 24, y + 34, width - 48, 26, 2);
       ctx.fillStyle = '#2563eb';
-      ctx.font = '700 24px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 700, 24);
       const inlineInfo = `${top.count || 0} คน (${top.percent || 0}%)`;
       const rightWidth = Math.min(230, Math.max(170, ctx.measureText(inlineInfo).width + 18));
       const valueMax = Math.max(120, width - 48 - rightWidth);
@@ -1338,26 +1518,26 @@
       ctx.textAlign = 'left';
       ctx.fillText(valueText, x + 24, textY);
       ctx.fillStyle = '#475569';
-      ctx.font = '500 20px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 500, 20);
       ctx.textAlign = 'right';
       ctx.fillText(inlineInfo, x + width - 24, textY);
       ctx.textAlign = 'left';
     }
 
-    function drawFooterSummary(ctx, x, y, width, comments, summaryItems) {
+    function drawFooterSummary(ctx, x, y, width, comments, summaryItems, theme) {
       const rows = (summaryItems || []).slice(0, 5);
       const cardHeight = Math.max(118, 112 + (rows.length * 34));
       drawRoundRect(ctx, x, y, width, cardHeight, 24, '#ecfeff');
       ctx.fillStyle = '#0e7490';
-      ctx.font = '700 28px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 700, 28);
       ctx.fillText('ข้อเสนอแนะเพิ่มเติม', x + 30, y + 46);
       ctx.fillStyle = '#155e75';
-      ctx.font = '500 22px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 500, 22);
       ctx.fillText(`มีความคิดเห็นทั้งหมด ${comments} รายการ`, x + 30, y + 82);
 
       if (rows.length) {
         ctx.fillStyle = '#0f172a';
-        ctx.font = '500 20px Sarabun, sans-serif';
+        ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 500, 20);
         rows.forEach((row, index) => {
           const label = `${index + 1}. ${row.topic} (${row.percent}%)`;
           const maxWidth = width - 240;
@@ -1366,12 +1546,12 @@
         });
       } else {
         ctx.fillStyle = '#334155';
-        ctx.font = '500 20px Sarabun, sans-serif';
+        ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 500, 20);
         ctx.fillText('ยังไม่มีข้อความข้อเสนอแนะสำหรับสรุปประเด็น', x + 30, y + 116);
       }
 
       ctx.fillStyle = '#64748b';
-      ctx.font = '400 18px Sarabun, sans-serif';
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 400, 18);
       ctx.textAlign = 'right';
       ctx.fillText('Exported from Admin Evaluation Results', x + width - 30, y + cardHeight - 30);
       ctx.textAlign = 'left';
@@ -1432,6 +1612,16 @@
     }
 
     function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines, align = 'left') {
+      const lines = getCanvasWrappedLines(ctx, text, maxWidth, maxLines + 2);
+      const visible = lines.slice(0, maxLines);
+      if (lines.length > maxLines && visible.length) visible[visible.length - 1] = trimCanvasText(ctx, visible[visible.length - 1], maxWidth);
+      const previousAlign = ctx.textAlign;
+      ctx.textAlign = align;
+      visible.forEach((lineText, index) => ctx.fillText(lineText, x, y + (index * lineHeight)));
+      ctx.textAlign = previousAlign;
+    }
+
+    function getCanvasWrappedLines(ctx, text, maxWidth, maxLines = 99) {
       const raw = String(text || '');
       const words = raw.split(/\s+/).filter(Boolean);
       const units = words.length ? words : raw.split('');
@@ -1450,12 +1640,7 @@
         }
       });
       if (line) lines.push(line);
-      const visible = lines.slice(0, maxLines);
-      if (lines.length > maxLines && visible.length) visible[visible.length - 1] = trimCanvasText(ctx, visible[visible.length - 1], maxWidth);
-      const previousAlign = ctx.textAlign;
-      ctx.textAlign = align;
-      visible.forEach((lineText, index) => ctx.fillText(lineText, x, y + (index * lineHeight)));
-      ctx.textAlign = previousAlign;
+      return lines.slice(0, maxLines);
     }
 
     function splitLongCanvasText(ctx, text, maxWidth) {
@@ -1596,6 +1781,7 @@
       const res = await callApiCached('getSettings');
       if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
       const s = res.data;
+      const inf = loadInfographicSettings();
 
       el.innerHTML = `
         <div class="bg-white rounded-2xl shadow p-6 mb-6 max-w-2xl">
@@ -1619,8 +1805,110 @@
         <div class="bg-white rounded-2xl shadow p-6 max-w-2xl">
           <h3 class="font-semibold text-gray-800 mb-4">👥 จัดการผู้ใช้</h3>
           <div id="usersList" class="text-gray-400 text-sm">กำลังโหลด...</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-6 mt-6 max-w-4xl">
+          <h3 class="font-semibold text-gray-800 mb-2">🖼️ ตั้งค่า Infographic</h3>
+          <p class="text-sm text-gray-500 mb-4">ปรับสี ข้อความ ขนาดตัวอักษร ฟอนต์ และพื้นหลังสำหรับไฟล์ส่งออก Infographic</p>
+          <form id="infographicSettingsForm" onsubmit="saveInfographicSettings(event)" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ข้อความหัวหลัก</label>
+                <input id="info_titleMain" type="text" value="${escapeHtml(inf.titleMain)}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ข้อความหัวรอง</label>
+                <input id="info_titleSub" type="text" value="${escapeHtml(inf.titleSub)}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ฟอนต์</label>
+                <select id="info_fontFamily" class="w-full px-3 py-2 border rounded-lg bg-white">
+                  <option value="Sarabun" ${inf.fontFamily === 'Sarabun' ? 'selected' : ''}>Sarabun</option>
+                  <option value="Kanit" ${inf.fontFamily === 'Kanit' ? 'selected' : ''}>Kanit</option>
+                  <option value="Tahoma" ${inf.fontFamily === 'Tahoma' ? 'selected' : ''}>Tahoma</option>
+                  <option value="Arial" ${inf.fontFamily === 'Arial' ? 'selected' : ''}>Arial</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ขนาดหัวหลัก</label>
+                <input id="info_titleMainSize" type="number" min="18" max="72" value="${escapeHtml(String(inf.titleMainSize))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ขนาดหัวรอง</label>
+                <input id="info_titleSubSize" type="number" min="20" max="96" value="${escapeHtml(String(inf.titleSubSize))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ขนาดหัวข้อส่วน</label>
+                <input id="info_sectionTitleSize" type="number" min="18" max="56" value="${escapeHtml(String(inf.sectionTitleSize))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">พื้นหลังหัวรายงาน</label>
+                <input id="info_headerBg" type="color" value="${escapeHtml(inf.headerBg)}" class="w-full h-10 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">สีหัวหลัก</label>
+                <input id="info_titleMainColor" type="color" value="${escapeHtml(inf.titleMainColor)}" class="w-full h-10 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">สีหัวรอง</label>
+                <input id="info_titleSubColor" type="color" value="${escapeHtml(inf.titleSubColor)}" class="w-full h-10 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ขนาดวันที่</label>
+                <input id="info_titleDateSize" type="number" min="12" max="36" value="${escapeHtml(String(inf.titleDateSize))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">โหมดพื้นหลัง</label>
+                <select id="info_backgroundMode" class="w-full px-3 py-2 border rounded-lg bg-white">
+                  <option value="gradient" ${inf.backgroundMode === 'gradient' ? 'selected' : ''}>Gradient</option>
+                  <option value="solid" ${inf.backgroundMode === 'solid' ? 'selected' : ''}>สีพื้นเดียว</option>
+                  <option value="image" ${inf.backgroundMode === 'image' ? 'selected' : ''}>ภาพพื้นหลัง (URL)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">สีพื้น A</label>
+                <input id="info_backgroundColorA" type="color" value="${escapeHtml(inf.backgroundColorA)}" class="w-full h-10 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">สีพื้น B</label>
+                <input id="info_backgroundColorB" type="color" value="${escapeHtml(inf.backgroundColorB)}" class="w-full h-10 border rounded-lg">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">URL ภาพพื้นหลัง (ใช้เมื่อเลือกโหมดภาพ)</label>
+              <input id="info_backgroundImageUrl" type="text" value="${escapeHtml(inf.backgroundImageUrl)}" placeholder="https://..." class="w-full px-3 py-2 border rounded-lg">
+            </div>
+
+            <div class="flex flex-wrap gap-3 pt-1">
+              <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium">💾 บันทึกค่า Infographic</button>
+              <button type="button" onclick="resetInfographicSettings()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-5 py-2.5 rounded-xl font-medium">↺ รีเซ็ตค่าเริ่มต้น</button>
+              <button type="button" id="info_previewRefreshBtn" class="bg-cyan-600 hover:bg-cyan-700 text-white px-5 py-2.5 rounded-xl font-medium">🔄 รีเฟรชตัวอย่าง</button>
+            </div>
+          </form>
+          <div class="mt-5 border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+            <div class="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between">
+              <p class="text-sm font-medium text-slate-700">Live Preview</p>
+              <p id="info_previewStatus" class="text-xs text-slate-500">พร้อมใช้งาน</p>
+            </div>
+            <div class="p-3 md:p-4">
+              <div class="mx-auto max-w-[520px] rounded-lg border border-slate-200 bg-white overflow-hidden">
+                <img id="info_previewImage" alt="Infographic Live Preview" class="w-full h-auto hidden">
+                <div id="info_previewEmpty" class="px-6 py-16 text-center text-sm text-slate-500">กำลังเตรียมตัวอย่าง...</div>
+              </div>
+            </div>
+          </div>
         </div>`;
       loadUsers();
+      initInfographicLivePreview();
     }
 
     function settingInput(key, label, value) {
