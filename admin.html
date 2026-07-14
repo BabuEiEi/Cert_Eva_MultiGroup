@@ -1292,7 +1292,7 @@
       const metricWidth = (contentWidth - (metricGap * 2)) / 3;
       drawMetricCard(ctx, padding, y, metricWidth, 140, 'ผู้ตอบทั้งหมด', `${data.totalResponses || 0}`, 'คน', '#2563eb', theme);
       drawMetricCard(ctx, padding + metricWidth + metricGap, y, metricWidth, 140, 'ค่าเฉลี่ยรวม', numberText(overall.mean) || '-', 'คะแนน', '#059669', theme);
-      drawMetricCard(ctx, padding + ((metricWidth + metricGap) * 2), y, metricWidth, 140, 'ระดับผลรวม', overall.interpret || '-', `S.D. ${numberText(overall.sd) || '-'}`, '#7c3aed', theme);
+      drawMetricCard(ctx, padding + ((metricWidth + metricGap) * 2), y, metricWidth, 140, 'ระดับคุณภาพรวม', overall.interpret || '-', `S.D. ${numberText(overall.sd) || '-'}`, '#7c3aed', theme);
       y += 178;
 
       drawSectionTitle(ctx, padding, y, 'ข้อมูลทั่วไป', theme);
