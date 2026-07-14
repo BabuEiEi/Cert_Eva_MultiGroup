@@ -1101,6 +1101,7 @@
         titleDateSize: 24,
         titleDateOffsetX: 36,
         titleDateOffsetY: 182,
+        topCardLineGap: 36,
         sectionTitleSize: 30,
         headerBg: '#0f172a',
         titleMainColor: '#93c5fd',
@@ -1141,6 +1142,7 @@
         titleDateSize: Number(document.getElementById('info_titleDateSize').value) || defaults.titleDateSize,
         titleDateOffsetX: Number(document.getElementById('info_titleDateOffsetX').value) || defaults.titleDateOffsetX,
         titleDateOffsetY: Number(document.getElementById('info_titleDateOffsetY').value) || defaults.titleDateOffsetY,
+        topCardLineGap: Number(document.getElementById('info_topCardLineGap').value) || defaults.topCardLineGap,
         sectionTitleSize: Number(document.getElementById('info_sectionTitleSize').value) || defaults.sectionTitleSize,
         headerBg: document.getElementById('info_headerBg').value || defaults.headerBg,
         titleMainColor: document.getElementById('info_titleMainColor').value || defaults.titleMainColor,
@@ -1223,6 +1225,7 @@
         'info_titleMainOffsetX', 'info_titleMainOffsetY',
         'info_titleSubLineHeight', 'info_titleSubMaxLines', 'info_titleDateSize', 'info_sectionTitleSize', 'info_headerBg', 'info_titleMainColor',
         'info_titleSubOffsetX', 'info_titleSubOffsetY', 'info_titleDateOffsetX', 'info_titleDateOffsetY',
+        'info_topCardLineGap',
         'info_titleSubColor', 'info_backgroundMode', 'info_backgroundColorA', 'info_backgroundColorB',
         'info_backgroundImageUrl'
       ];
@@ -1395,11 +1398,13 @@
       ctx.fillText(label, x + 30, y + 42);
       ctx.fillStyle = color;
       ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 700, value.length > 10 ? 32 : 52);
+      const valueY = y + 90;
+      const lineGap = Math.max(18, Math.min(80, Number((theme && theme.topCardLineGap) || 36)));
       // เพิ่มระยะระหว่างค่าหลักกับบรรทัดหน่วยให้ไม่แน่นเกินไป
-      wrapCanvasText(ctx, value, x + 30, y + 90, width - 60, 44, 2);
+      wrapCanvasText(ctx, value, x + 30, valueY, width - 60, 44, 2);
       ctx.fillStyle = '#475569';
       ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 400, 20);
-      ctx.fillText(unit, x + 30, y + height - 14);
+      ctx.fillText(unit, x + 30, valueY + lineGap);
     }
 
     function drawSectionTitle(ctx, x, y, text, theme) {
@@ -1906,6 +1911,10 @@
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันที่แกน Y</label>
                 <input id="info_titleDateOffsetY" type="number" min="-100" max="350" value="${escapeHtml(String(inf.titleDateOffsetY || 182))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ระยะห่างบรรทัดกล่องสรุป</label>
+                <input id="info_topCardLineGap" type="number" min="18" max="80" value="${escapeHtml(String(inf.topCardLineGap || 36))}" class="w-full px-3 py-2 border rounded-lg">
               </div>
             </div>
 
