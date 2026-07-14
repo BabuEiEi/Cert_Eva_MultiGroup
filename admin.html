@@ -928,7 +928,10 @@
         return;
       }
 
-      let html = `<div class="flex justify-end mb-4">
+      let html = `<div class="flex flex-wrap justify-end gap-2 mb-4">
+        <button onclick="exportResultsInfographic()" class="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-xl text-sm font-medium flex items-center gap-2">
+          <span>🖼️</span> ส่งออก Infographic
+        </button>
         <button onclick="exportResultsExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-sm font-medium flex items-center gap-2">
           <span>⬇️</span> ส่งออก Excel
         </button>
@@ -1035,9 +1038,284 @@
       appendSheet(workbook, 'ตอนที่ 3', buildPart3ExportRows(resultsData));
       appendSheet(workbook, 'คำตอบรายคน', buildResponseExportRows(resultsData));
 
-      const now = new Date();
-      const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      const stamp = getExportStamp();
       XLSX.writeFile(workbook, `evaluation-results-${stamp}.xlsx`);
+    }
+
+    async function exportResultsInfographic() {
+      if (!resultsData || !resultsData.totalResponses) { showToast('ยังไม่มีข้อมูลผลการประเมินสำหรับส่งออก', 'error'); return; }
+
+      try {
+        showLoading('กำลังสร้างภาพ Infographic...');
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        const canvas = buildResultsInfographicCanvas(resultsData);
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        if (!blob) throw new Error('สร้างไฟล์ภาพไม่สำเร็จ');
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `evaluation-infographic-${getExportStamp()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        hideLoading();
+        showToast('ส่งออกภาพ Infographic แล้ว');
+      } catch (err) {
+        hideLoading();
+        showToast(err.message || 'ส่งออกภาพ Infographic ไม่สำเร็จ', 'error');
+      }
+    }
+
+    function buildResultsInfographicCanvas(data) {
+      const width = 1080;
+      const padding = 64;
+      const contentWidth = width - (padding * 2);
+      const part1 = (data.part1 || []).slice(0, 4);
+      const categories = ((data.part2 && data.part2.byCategory) || []).slice(0, 8);
+      const comments = (data.part3 || []).reduce((sum, item) => sum + ((item.answers || []).length), 0);
+      const topAnswerCardStep = 198;
+      const height = 980 + (part1.length * topAnswerCardStep) + (categories.length * 64);
+      const canvas = document.createElement('canvas');
+      const scale = 2;
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+
+      const ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, width, height);
+      drawInfographicBackground(ctx, width, height);
+
+      let y = 56;
+      drawInfographicHeader(ctx, padding, y, contentWidth, data);
+      y += 260;
+
+      const overall = data.part2 && data.part2.overall ? data.part2.overall : {};
+      drawMetricCard(ctx, padding, y, 300, 150, 'ผู้ตอบทั้งหมด', `${data.totalResponses || 0}`, 'คน', '#2563eb');
+      drawMetricCard(ctx, padding + 324, y, 300, 150, 'ค่าเฉลี่ยรวม', numberText(overall.mean) || '-', 'คะแนน', '#059669');
+      drawMetricCard(ctx, padding + 648, y, 304, 150, 'ระดับผลรวม', overall.interpret || '-', `S.D. ${numberText(overall.sd) || '-'}`, '#7c3aed');
+      y += 198;
+
+      drawSectionTitle(ctx, padding, y, 'สรุปคะแนนรายด้าน');
+      y += 48;
+      categories.forEach((item, index) => {
+        const percent = Math.max(0, Math.min(100, (Number(item.mean) || 0) / 5 * 100));
+        drawCategoryBar(ctx, padding, y, contentWidth, item.category || `ด้านที่ ${index + 1}`, numberText(item.mean) || '-', item.interpret || '', percent, index);
+        y += 64;
+      });
+      if (!categories.length) {
+        drawEmptyLine(ctx, padding, y, contentWidth, 'ไม่มีข้อมูลคะแนนรายด้าน');
+        y += 64;
+      }
+      y += 28;
+
+      drawSectionTitle(ctx, padding, y, 'ข้อมูลทั่วไปที่ตอบมากที่สุด');
+      y += 48;
+      part1.forEach(item => {
+        const options = (item.options || []).slice().sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0));
+        const top = options[0] || { label: '-', count: 0, percent: 0 };
+        drawTopAnswerCard(ctx, padding, y, contentWidth, item.questionText || '-', top, item.answered || 0);
+        y += topAnswerCardStep;
+      });
+      if (!part1.length) {
+        drawEmptyLine(ctx, padding, y, contentWidth, 'ไม่มีข้อมูลทั่วไป');
+        y += 64;
+      }
+      y += 16;
+
+      drawFooterSummary(ctx, padding, y, contentWidth, comments);
+      return canvas;
+    }
+
+    function drawInfographicBackground(ctx, width, height) {
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, '#dbeafe');
+      gradient.addColorStop(0.45, '#f8fafc');
+      gradient.addColorStop(1, '#dcfce7');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = 'rgba(37, 99, 235, 0.12)';
+      ctx.beginPath();
+      ctx.arc(930, 92, 170, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(5, 150, 105, 0.12)';
+      ctx.beginPath();
+      ctx.arc(90, height - 80, 210, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawInfographicHeader(ctx, x, y, width, data) {
+      drawRoundRect(ctx, x, y, width, 220, 30, '#0f172a');
+      ctx.fillStyle = '#93c5fd';
+      ctx.font = '700 28px Sarabun, sans-serif';
+      ctx.fillText('รายงานผลการประเมิน', x + 36, y + 58);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 54px Sarabun, sans-serif';
+      wrapCanvasText(ctx, 'Evaluation Results Infographic', x + 36, y + 118, width - 72, 58, 2);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '400 24px Sarabun, sans-serif';
+      ctx.fillText(`สร้างเมื่อ ${formatThaiExportDate(new Date())}`, x + 36, y + 182);
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = '700 76px Sarabun, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(String(data.totalResponses || 0), x + width - 42, y + 104);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '500 24px Sarabun, sans-serif';
+      ctx.fillText('ผู้ตอบ', x + width - 42, y + 140);
+      ctx.textAlign = 'left';
+    }
+
+    function drawMetricCard(ctx, x, y, width, height, label, value, unit, color) {
+      drawRoundRect(ctx, x, y, width, height, 24, '#ffffff');
+      drawRoundRect(ctx, x, y, 10, height, 5, color);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '500 22px Sarabun, sans-serif';
+      ctx.fillText(label, x + 30, y + 42);
+      ctx.fillStyle = color;
+      ctx.font = value.length > 10 ? '700 32px Sarabun, sans-serif' : '700 52px Sarabun, sans-serif';
+      wrapCanvasText(ctx, value, x + 30, y + 96, width - 60, 44, 2);
+      ctx.fillStyle = '#475569';
+      ctx.font = '400 20px Sarabun, sans-serif';
+      ctx.fillText(unit, x + 30, y + height - 26);
+    }
+
+    function drawSectionTitle(ctx, x, y, text) {
+      ctx.fillStyle = '#0f172a';
+      ctx.font = '700 30px Sarabun, sans-serif';
+      ctx.fillText(text, x, y + 30);
+    }
+
+    function drawCategoryBar(ctx, x, y, width, label, mean, interpret, percent, index) {
+      const colors = ['#2563eb', '#059669', '#ea580c', '#7c3aed', '#0891b2', '#be123c', '#4f46e5', '#16a34a'];
+      const color = colors[index % colors.length];
+      ctx.fillStyle = '#334155';
+      ctx.font = '500 22px Sarabun, sans-serif';
+      wrapCanvasText(ctx, label, x, y + 24, width - 170, 24, 1);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = color;
+      ctx.font = '700 26px Sarabun, sans-serif';
+      ctx.fillText(mean, x + width, y + 25);
+      ctx.textAlign = 'left';
+      drawRoundRect(ctx, x, y + 36, width, 16, 8, '#e2e8f0');
+      drawRoundRect(ctx, x, y + 36, width * percent / 100, 16, 8, color);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '400 18px Sarabun, sans-serif';
+      ctx.fillText(interpret, x, y + 80);
+    }
+
+    function drawTopAnswerCard(ctx, x, y, width, item, top, answered) {
+      drawRoundRect(ctx, x, y, width, 168, 22, '#ffffff');
+      ctx.fillStyle = '#0f172a';
+      ctx.font = '600 22px Sarabun, sans-serif';
+      wrapCanvasText(ctx, item, x + 28, y + 36, width - 390, 28, 3);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '400 18px Sarabun, sans-serif';
+      ctx.fillText(`n=${answered}`, x + 28, y + 138);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#2563eb';
+      ctx.font = '700 30px Sarabun, sans-serif';
+      wrapCanvasText(ctx, String(top.label || '-'), x + width - 28, y + 44, 310, 34, 3, 'right');
+      ctx.fillStyle = '#475569';
+      ctx.font = '500 20px Sarabun, sans-serif';
+      ctx.fillText(`${top.count || 0} คน (${top.percent || 0}%)`, x + width - 28, y + 138);
+      ctx.textAlign = 'left';
+    }
+
+    function drawFooterSummary(ctx, x, y, width, comments) {
+      drawRoundRect(ctx, x, y, width, 118, 24, '#ecfeff');
+      ctx.fillStyle = '#0e7490';
+      ctx.font = '700 28px Sarabun, sans-serif';
+      ctx.fillText('ข้อเสนอแนะเพิ่มเติม', x + 30, y + 46);
+      ctx.fillStyle = '#155e75';
+      ctx.font = '500 24px Sarabun, sans-serif';
+      ctx.fillText(`มีความคิดเห็นทั้งหมด ${comments} รายการ`, x + 30, y + 84);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '400 18px Sarabun, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText('Exported from Admin Evaluation Results', x + width - 30, y + 84);
+      ctx.textAlign = 'left';
+    }
+
+    function drawEmptyLine(ctx, x, y, width, text) {
+      drawRoundRect(ctx, x, y, width, 52, 18, '#ffffff');
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '400 20px Sarabun, sans-serif';
+      ctx.fillText(text, x + 24, y + 34);
+    }
+
+    function drawRoundRect(ctx, x, y, width, height, radius, fillStyle) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.fillStyle = fillStyle;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + width, y, x + width, y + height, r);
+      ctx.arcTo(x + width, y + height, x, y + height, r);
+      ctx.arcTo(x, y + height, x, y, r);
+      ctx.arcTo(x, y, x + width, y, r);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines, align = 'left') {
+      const raw = String(text || '');
+      const words = raw.split(/\s+/).filter(Boolean);
+      const units = words.length ? words : raw.split('');
+      const lines = [];
+      let line = '';
+      units.forEach(unit => {
+        const testLine = line ? `${line} ${unit}` : unit;
+        if (ctx.measureText(unit).width > maxWidth) {
+          if (line) { lines.push(line); line = ''; }
+          splitLongCanvasText(ctx, unit, maxWidth).forEach(part => lines.push(part));
+        } else if (ctx.measureText(testLine).width > maxWidth && line) {
+          lines.push(line);
+          line = unit;
+        } else {
+          line = testLine;
+        }
+      });
+      if (line) lines.push(line);
+      const visible = lines.slice(0, maxLines);
+      if (lines.length > maxLines && visible.length) visible[visible.length - 1] = trimCanvasText(ctx, visible[visible.length - 1], maxWidth);
+      const previousAlign = ctx.textAlign;
+      ctx.textAlign = align;
+      visible.forEach((lineText, index) => ctx.fillText(lineText, x, y + (index * lineHeight)));
+      ctx.textAlign = previousAlign;
+    }
+
+    function splitLongCanvasText(ctx, text, maxWidth) {
+      const parts = [];
+      let line = '';
+      String(text || '').split('').forEach(char => {
+        const testLine = line + char;
+        if (ctx.measureText(testLine).width > maxWidth && line) {
+          parts.push(line);
+          line = char;
+        } else {
+          line = testLine;
+        }
+      });
+      if (line) parts.push(line);
+      return parts;
+    }
+
+    function trimCanvasText(ctx, text, maxWidth) {
+      let output = String(text || '');
+      while (output.length > 0 && ctx.measureText(output + '...').width > maxWidth) output = output.slice(0, -1);
+      return output + (output ? '...' : '');
+    }
+
+    function formatThaiExportDate(date) {
+      return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+    }
+
+    function getExportStamp() {
+      const now = new Date();
+      return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
     }
 
     function appendSheet(workbook, name, rows) {
