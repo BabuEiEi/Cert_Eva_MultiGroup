@@ -1102,6 +1102,8 @@
         titleDateOffsetX: 36,
         titleDateOffsetY: 182,
         topCardLineGap: 36,
+        topCardValueSize: 46,
+        topCardUnitSize: 20,
         sectionTitleSize: 30,
         headerBg: '#0f172a',
         titleMainColor: '#93c5fd',
@@ -1143,6 +1145,8 @@
         titleDateOffsetX: Number(document.getElementById('info_titleDateOffsetX').value) || defaults.titleDateOffsetX,
         titleDateOffsetY: Number(document.getElementById('info_titleDateOffsetY').value) || defaults.titleDateOffsetY,
         topCardLineGap: Number(document.getElementById('info_topCardLineGap').value) || defaults.topCardLineGap,
+        topCardValueSize: Number(document.getElementById('info_topCardValueSize').value) || defaults.topCardValueSize,
+        topCardUnitSize: Number(document.getElementById('info_topCardUnitSize').value) || defaults.topCardUnitSize,
         sectionTitleSize: Number(document.getElementById('info_sectionTitleSize').value) || defaults.sectionTitleSize,
         headerBg: document.getElementById('info_headerBg').value || defaults.headerBg,
         titleMainColor: document.getElementById('info_titleMainColor').value || defaults.titleMainColor,
@@ -1225,7 +1229,7 @@
         'info_titleMainOffsetX', 'info_titleMainOffsetY',
         'info_titleSubLineHeight', 'info_titleSubMaxLines', 'info_titleDateSize', 'info_sectionTitleSize', 'info_headerBg', 'info_titleMainColor',
         'info_titleSubOffsetX', 'info_titleSubOffsetY', 'info_titleDateOffsetX', 'info_titleDateOffsetY',
-        'info_topCardLineGap',
+        'info_topCardLineGap', 'info_topCardValueSize', 'info_topCardUnitSize',
         'info_titleSubColor', 'info_backgroundMode', 'info_backgroundColorA', 'info_backgroundColorB',
         'info_backgroundImageUrl'
       ];
@@ -1399,7 +1403,8 @@
 
       const valueText = String(value || '-').trim();
       const valueIsNumeric = /^[0-9.,]+$/.test(valueText);
-      let valueSize = valueIsNumeric ? 46 : 38;
+      const baseValueSize = Math.max(26, Math.min(72, Number((theme && theme.topCardValueSize) || 46)));
+      let valueSize = valueIsNumeric ? baseValueSize : Math.min(baseValueSize, 40);
       if (valueText.length >= 10) valueSize -= 4;
       if (valueText.length >= 16) valueSize -= 4;
 
@@ -1426,7 +1431,8 @@
 
       const lineGap = Math.max(18, Math.min(80, Number((theme && theme.topCardLineGap) || 36)));
       ctx.fillStyle = '#475569';
-      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 400, 20);
+      const unitSize = Math.max(12, Math.min(36, Number((theme && theme.topCardUnitSize) || 20)));
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 400, unitSize);
       let unitY = valueY + (visibleLines.length * valueLineHeight) + lineGap;
       unitY = Math.min(unitY, y + height - 24);
       ctx.fillText(unit, x + 30, unitY);
@@ -1941,6 +1947,14 @@
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">ระยะห่างบรรทัดกล่องสรุป</label>
                 <input id="info_topCardLineGap" type="number" min="18" max="80" value="${escapeHtml(String(inf.topCardLineGap || 36))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ขนาดค่าหลักกล่องสรุป</label>
+                <input id="info_topCardValueSize" type="number" min="26" max="72" value="${escapeHtml(String(inf.topCardValueSize || 46))}" class="w-full px-3 py-2 border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ขนาดข้อความหน่วยกล่องสรุป</label>
+                <input id="info_topCardUnitSize" type="number" min="12" max="36" value="${escapeHtml(String(inf.topCardUnitSize || 20))}" class="w-full px-3 py-2 border rounded-lg">
               </div>
             </div>
 
