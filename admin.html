@@ -1104,7 +1104,7 @@
       drawMetricCard(ctx, padding + ((metricWidth + metricGap) * 2), y, metricWidth, 140, 'ระดับผลรวม', overall.interpret || '-', `S.D. ${numberText(overall.sd) || '-'}`, '#7c3aed');
       y += 178;
 
-      drawSectionTitle(ctx, padding, y, 'ข้อมูลทั่วไปที่ตอบมากที่สุด');
+      drawSectionTitle(ctx, padding, y, 'ข้อมูลทั่วไป');
       y += 48;
       const topAnswerCardWidth = (contentWidth - topAnswerCardGap) / 2;
       part1.forEach((item, index) => {
@@ -1112,7 +1112,7 @@
         const top = options[0] || { label: '-', count: 0, percent: 0 };
         const col = index % 2;
         const row = Math.floor(index / 2);
-        drawTopAnswerCard(ctx, padding + (col * (topAnswerCardWidth + topAnswerCardGap)), y + (row * (topAnswerCardHeight + topAnswerCardGap)), topAnswerCardWidth, topAnswerCardHeight, item.questionText || '-', top, item.answered || 0);
+        drawTopAnswerCard(ctx, padding + (col * (topAnswerCardWidth + topAnswerCardGap)), y + (row * (topAnswerCardHeight + topAnswerCardGap)), topAnswerCardWidth, topAnswerCardHeight, item.questionText || '-', top);
       });
       if (!part1.length) {
         drawEmptyLine(ctx, padding, y, contentWidth, 'ไม่มีข้อมูลทั่วไป');
@@ -1219,23 +1219,37 @@
       for (let i = 0; i <= rowCount; i++) {
         const yPos = y + headerHeight + (i * rowHeight);
         ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.4;
         ctx.beginPath();
         ctx.moveTo(x, yPos);
         ctx.lineTo(x + width, yPos);
         ctx.stroke();
       }
 
+      // วาดเส้นบนหัวตารางและเส้นล่างสุดให้ครบทุกแถวอย่างชัดเจน
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + width, y);
+      ctx.moveTo(x, y + tableHeight);
+      ctx.lineTo(x + width, y + tableHeight);
+      ctx.stroke();
+
       let lineX = x;
       colWidths.forEach(colWidth => {
         lineX += colWidth;
         ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.4;
         ctx.beginPath();
         ctx.moveTo(lineX, y);
         ctx.lineTo(lineX, y + tableHeight);
         ctx.stroke();
       });
+
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(x, y, width, tableHeight);
 
       categories.forEach((item, index) => {
         const rowTop = y + headerHeight + (index * rowHeight);
@@ -1272,14 +1286,11 @@
       return tableHeight;
     }
 
-    function drawTopAnswerCard(ctx, x, y, width, height, item, top, answered) {
+    function drawTopAnswerCard(ctx, x, y, width, height, item, top) {
       drawRoundRect(ctx, x, y, width, height, 22, '#ffffff');
       ctx.fillStyle = '#0f172a';
       ctx.font = '600 20px Sarabun, sans-serif';
       wrapCanvasText(ctx, item, x + 24, y + 34, width - 48, 26, 2);
-      ctx.fillStyle = '#64748b';
-      ctx.font = '400 18px Sarabun, sans-serif';
-      ctx.fillText(`n=${answered}`, x + 24, y + height - 28);
       ctx.fillStyle = '#2563eb';
       ctx.font = '700 28px Sarabun, sans-serif';
       wrapCanvasText(ctx, String(top.label || '-'), x + 24, y + 92, width - 48, 30, 2);
