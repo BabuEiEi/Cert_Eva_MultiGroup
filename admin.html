@@ -1104,19 +1104,6 @@
       drawMetricCard(ctx, padding + ((metricWidth + metricGap) * 2), y, metricWidth, 140, 'ระดับผลรวม', overall.interpret || '-', `S.D. ${numberText(overall.sd) || '-'}`, '#7c3aed');
       y += 178;
 
-      drawSectionTitle(ctx, padding, y, 'สรุปคะแนนรายด้าน');
-      y += 48;
-      categories.forEach((item, index) => {
-        const percent = Math.max(0, Math.min(100, (Number(item.mean) || 0) / 5 * 100));
-        drawCategoryBar(ctx, padding, y, contentWidth, item.category || `ด้านที่ ${index + 1}`, numberText(item.mean) || '-', item.interpret || '', percent, index);
-        y += categoryStep;
-      });
-      if (!categories.length) {
-        drawEmptyLine(ctx, padding, y, contentWidth, 'ไม่มีข้อมูลคะแนนรายด้าน');
-        y += categoryStep;
-      }
-      y += 28;
-
       drawSectionTitle(ctx, padding, y, 'ข้อมูลทั่วไปที่ตอบมากที่สุด');
       y += 48;
       const topAnswerCardWidth = (contentWidth - topAnswerCardGap) / 2;
@@ -1132,6 +1119,16 @@
         y += 64;
       } else {
         y += Math.ceil(part1.length / 2) * (topAnswerCardHeight + topAnswerCardGap);
+      }
+      y += 16;
+
+      drawSectionTitle(ctx, padding, y, 'สรุปรายด้าน');
+      y += 48;
+      if (!categories.length) {
+        drawEmptyLine(ctx, padding, y, contentWidth, 'ไม่มีข้อมูลคะแนนรายด้าน');
+        y += 64;
+      } else {
+        y += drawCategorySummaryTable(ctx, padding, y, contentWidth, categories);
       }
       y += 16;
 
@@ -1197,22 +1194,82 @@
       ctx.fillText(text, x, y + 30);
     }
 
-    function drawCategoryBar(ctx, x, y, width, label, mean, interpret, percent, index) {
-      const colors = ['#2563eb', '#059669', '#ea580c', '#7c3aed', '#0891b2', '#be123c', '#4f46e5', '#16a34a'];
-      const color = colors[index % colors.length];
-      ctx.fillStyle = '#334155';
-      ctx.font = '500 22px Sarabun, sans-serif';
-      wrapCanvasText(ctx, label, x, y + 24, width - 260, 24, 1);
-      ctx.textAlign = 'right';
-      ctx.fillStyle = color;
-      ctx.font = '700 26px Sarabun, sans-serif';
-      ctx.fillText(mean, x + width, y + 25);
-      ctx.fillStyle = '#64748b';
-      ctx.font = '400 18px Sarabun, sans-serif';
-      ctx.fillText(interpret, x + width - 54, y + 25);
+    function drawCategorySummaryTable(ctx, x, y, width, categories) {
+      const headerHeight = 48;
+      const rowHeight = 50;
+      const borderColor = '#cbd5e1';
+      const rowCount = categories.length;
+      const tableHeight = headerHeight + (rowCount * rowHeight);
+      const colWidths = [90, 360, 130, 160, 120, width - (90 + 360 + 130 + 160 + 120)];
+      const headers = ['ลำดับ', 'ด้าน', 'จำนวน', 'ค่าเฉลี่ย', 'SD', 'ระดับคุณภาพ'];
+
+      drawRoundRect(ctx, x, y, width, tableHeight, 18, '#ffffff');
+      drawRoundRect(ctx, x, y, width, headerHeight, 18, '#e2e8f0');
+
+      let cursorX = x;
+      headers.forEach((header, i) => {
+        ctx.fillStyle = '#334155';
+        ctx.font = '700 20px Sarabun, sans-serif';
+        ctx.textAlign = i === 1 ? 'left' : 'center';
+        const textX = i === 1 ? cursorX + 16 : cursorX + (colWidths[i] / 2);
+        ctx.fillText(header, textX, y + 31);
+        cursorX += colWidths[i];
+      });
+
+      for (let i = 0; i <= rowCount; i++) {
+        const yPos = y + headerHeight + (i * rowHeight);
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, yPos);
+        ctx.lineTo(x + width, yPos);
+        ctx.stroke();
+      }
+
+      let lineX = x;
+      colWidths.forEach(colWidth => {
+        lineX += colWidth;
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(lineX, y);
+        ctx.lineTo(lineX, y + tableHeight);
+        ctx.stroke();
+      });
+
+      categories.forEach((item, index) => {
+        const rowTop = y + headerHeight + (index * rowHeight);
+        if (index % 2 === 1) {
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(x + 1, rowTop + 1, width - 2, rowHeight - 2);
+        }
+
+        const values = [
+          String(index + 1),
+          String(item.category || '-'),
+          String(item.n || 0),
+          numberText(item.mean) || '-',
+          numberText(item.sd) || '-',
+          String(item.interpret || '-')
+        ];
+
+        let valueX = x;
+        values.forEach((value, colIndex) => {
+          ctx.fillStyle = '#0f172a';
+          ctx.font = colIndex === 1 ? '500 20px Sarabun, sans-serif' : '400 20px Sarabun, sans-serif';
+          ctx.textAlign = colIndex === 1 ? 'left' : 'center';
+          const textX = colIndex === 1 ? valueX + 16 : valueX + (colWidths[colIndex] / 2);
+          if (colIndex === 1) {
+            wrapCanvasText(ctx, value, textX, rowTop + 31, colWidths[colIndex] - 24, 24, 1, 'left');
+          } else {
+            ctx.fillText(value, textX, rowTop + 31);
+          }
+          valueX += colWidths[colIndex];
+        });
+      });
+
       ctx.textAlign = 'left';
-      drawRoundRect(ctx, x, y + 36, width, 16, 8, '#e2e8f0');
-      drawRoundRect(ctx, x, y + 36, width * percent / 100, 16, 8, color);
+      return tableHeight;
     }
 
     function drawTopAnswerCard(ctx, x, y, width, height, item, top, answered) {
