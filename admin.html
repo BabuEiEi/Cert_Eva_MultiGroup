@@ -1053,15 +1053,28 @@
         if (!blob) throw new Error('สร้างไฟล์ภาพไม่สำเร็จ');
 
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `evaluation-infographic-${getExportStamp()}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
         hideLoading();
-        showToast('ส่งออกภาพ Infographic แล้ว');
+
+        const result = await Swal.fire({
+          title: 'ตัวอย่าง Infographic',
+          html: `<img src="${url}" alt="Infographic Preview" style="width:100%;height:auto;border-radius:12px;border:1px solid #e2e8f0;">`,
+          width: 900,
+          showCancelButton: true,
+          confirmButtonText: 'ดาวน์โหลด',
+          cancelButtonText: 'ปิด',
+          confirmButtonColor: '#2563eb'
+        });
+
+        if (result.isConfirmed) {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `evaluation-infographic-${getExportStamp()}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          showToast('ส่งออกภาพ Infographic แล้ว');
+        }
+        URL.revokeObjectURL(url);
       } catch (err) {
         hideLoading();
         showToast(err.message || 'ส่งออกภาพ Infographic ไม่สำเร็จ', 'error');
@@ -1076,7 +1089,7 @@
       const part1 = (data.part1 || []).slice(0, 4);
       const categories = ((data.part2 && data.part2.byCategory) || []).slice(0, 8);
       const comments = (data.part3 || []).reduce((sum, item) => sum + ((item.answers || []).length), 0);
-      const categoryStep = 58;
+      const commentSummary = summarizeCommentTopics(data.part3 || []);
       const topAnswerCardHeight = 158;
       const topAnswerCardGap = 24;
       const canvas = document.createElement('canvas');
@@ -1132,7 +1145,7 @@
       }
       y += 16;
 
-      drawFooterSummary(ctx, padding, y, contentWidth, comments);
+      drawFooterSummary(ctx, padding, y, contentWidth, comments, commentSummary);
       return canvas;
     }
 
@@ -1282,6 +1295,30 @@
         });
       });
 
+      // วาดเส้นทับอีกครั้งหลังลงพื้นสลับสี เพื่อไม่ให้เส้นแนวตั้งหาย
+      for (let i = 0; i <= rowCount; i++) {
+        const yPos = y + headerHeight + (i * rowHeight);
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(x, yPos);
+        ctx.lineTo(x + width, yPos);
+        ctx.stroke();
+      }
+      let gridX = x;
+      colWidths.forEach(colWidth => {
+        gridX += colWidth;
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(gridX, y);
+        ctx.lineTo(gridX, y + tableHeight);
+        ctx.stroke();
+      });
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(x, y, width, tableHeight);
+
       ctx.textAlign = 'left';
       return tableHeight;
     }
@@ -1292,28 +1329,86 @@
       ctx.font = '600 20px Sarabun, sans-serif';
       wrapCanvasText(ctx, item, x + 24, y + 34, width - 48, 26, 2);
       ctx.fillStyle = '#2563eb';
-      ctx.font = '700 28px Sarabun, sans-serif';
-      wrapCanvasText(ctx, String(top.label || '-'), x + 24, y + 92, width - 48, 30, 2);
+      ctx.font = '700 24px Sarabun, sans-serif';
+      const inlineInfo = `${top.count || 0} คน (${top.percent || 0}%)`;
+      const rightWidth = Math.min(230, Math.max(170, ctx.measureText(inlineInfo).width + 18));
+      const valueMax = Math.max(120, width - 48 - rightWidth);
+      const valueText = trimCanvasText(ctx, String(top.label || '-'), valueMax);
+      const textY = y + height - 42;
+      ctx.textAlign = 'left';
+      ctx.fillText(valueText, x + 24, textY);
       ctx.fillStyle = '#475569';
       ctx.font = '500 20px Sarabun, sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText(`${top.count || 0} คน (${top.percent || 0}%)`, x + width - 24, y + height - 28);
+      ctx.fillText(inlineInfo, x + width - 24, textY);
       ctx.textAlign = 'left';
     }
 
-    function drawFooterSummary(ctx, x, y, width, comments) {
-      drawRoundRect(ctx, x, y, width, 118, 24, '#ecfeff');
+    function drawFooterSummary(ctx, x, y, width, comments, summaryItems) {
+      const rows = (summaryItems || []).slice(0, 5);
+      const cardHeight = Math.max(118, 112 + (rows.length * 34));
+      drawRoundRect(ctx, x, y, width, cardHeight, 24, '#ecfeff');
       ctx.fillStyle = '#0e7490';
       ctx.font = '700 28px Sarabun, sans-serif';
       ctx.fillText('ข้อเสนอแนะเพิ่มเติม', x + 30, y + 46);
       ctx.fillStyle = '#155e75';
-      ctx.font = '500 24px Sarabun, sans-serif';
-      ctx.fillText(`มีความคิดเห็นทั้งหมด ${comments} รายการ`, x + 30, y + 84);
+      ctx.font = '500 22px Sarabun, sans-serif';
+      ctx.fillText(`มีความคิดเห็นทั้งหมด ${comments} รายการ`, x + 30, y + 82);
+
+      if (rows.length) {
+        ctx.fillStyle = '#0f172a';
+        ctx.font = '500 20px Sarabun, sans-serif';
+        rows.forEach((row, index) => {
+          const label = `${index + 1}. ${row.topic} (${row.percent}%)`;
+          const maxWidth = width - 240;
+          const text = trimCanvasText(ctx, label, maxWidth);
+          ctx.fillText(text, x + 30, y + 118 + (index * 30));
+        });
+      } else {
+        ctx.fillStyle = '#334155';
+        ctx.font = '500 20px Sarabun, sans-serif';
+        ctx.fillText('ยังไม่มีข้อความข้อเสนอแนะสำหรับสรุปประเด็น', x + 30, y + 116);
+      }
+
       ctx.fillStyle = '#64748b';
       ctx.font = '400 18px Sarabun, sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText('Exported from Admin Evaluation Results', x + width - 30, y + 84);
+      ctx.fillText('Exported from Admin Evaluation Results', x + width - 30, y + cardHeight - 30);
       ctx.textAlign = 'left';
+    }
+
+    function summarizeCommentTopics(part3Data) {
+      const allComments = [];
+      (part3Data || []).forEach(item => {
+        (item.answers || []).forEach(answer => {
+          const text = normalizeCommentText(answer);
+          if (text) allComments.push(text);
+        });
+      });
+
+      if (!allComments.length) return [];
+
+      const counter = new Map();
+      allComments.forEach(text => {
+        counter.set(text, (counter.get(text) || 0) + 1);
+      });
+
+      const total = allComments.length;
+      return Array.from(counter.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([topic, count]) => ({
+          topic,
+          count,
+          percent: Math.round((count / total) * 100)
+        }));
+    }
+
+    function normalizeCommentText(value) {
+      return String(value || '')
+        .replace(/\s+/g, ' ')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .trim();
     }
 
     function drawEmptyLine(ctx, x, y, width, text) {
