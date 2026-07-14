@@ -1396,15 +1396,41 @@
       ctx.fillStyle = '#64748b';
       ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 500, 22);
       ctx.fillText(label, x + 30, y + 42);
+
+      const valueText = String(value || '-').trim();
+      const valueIsNumeric = /^[0-9.,]+$/.test(valueText);
+      let valueSize = valueIsNumeric ? 46 : 38;
+      if (valueText.length >= 10) valueSize -= 4;
+      if (valueText.length >= 16) valueSize -= 4;
+
+      // ปรับขนาดอักษรอัตโนมัติไม่ให้ชนขอบหรือทับบรรทัดบน
+      while (valueSize > 26) {
+        ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 700, valueSize);
+        if (ctx.measureText(valueText).width <= (width - 60)) break;
+        valueSize -= 2;
+      }
+
+      const valueY = y + 54;
+      const valueLineHeight = Math.round(valueSize * 0.98);
+      const previousBaseline = ctx.textBaseline;
+      ctx.textBaseline = 'top';
+
       ctx.fillStyle = color;
-      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 700, value.length > 10 ? 32 : 52);
-      const valueY = y + 90;
+      ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 700, valueSize);
+      const lines = getCanvasWrappedLines(ctx, valueText, width - 60, 2);
+      const visibleLines = lines.length ? lines.slice(0, 2) : ['-'];
+      if (lines.length > 2) visibleLines[1] = trimCanvasText(ctx, visibleLines[1], width - 60);
+      visibleLines.forEach((line, index) => {
+        ctx.fillText(line, x + 30, valueY + (index * valueLineHeight));
+      });
+
       const lineGap = Math.max(18, Math.min(80, Number((theme && theme.topCardLineGap) || 36)));
-      // เพิ่มระยะระหว่างค่าหลักกับบรรทัดหน่วยให้ไม่แน่นเกินไป
-      wrapCanvasText(ctx, value, x + 30, valueY, width - 60, 44, 2);
       ctx.fillStyle = '#475569';
       ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 400, 20);
-      ctx.fillText(unit, x + 30, valueY + lineGap);
+      let unitY = valueY + (visibleLines.length * valueLineHeight) + lineGap;
+      unitY = Math.min(unitY, y + height - 24);
+      ctx.fillText(unit, x + 30, unitY);
+      ctx.textBaseline = previousBaseline;
     }
 
     function drawSectionTitle(ctx, x, y, text, theme) {
