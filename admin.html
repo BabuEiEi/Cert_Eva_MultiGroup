@@ -1395,10 +1395,11 @@
       ctx.fillText(label, x + 30, y + 42);
       ctx.fillStyle = color;
       ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 700, value.length > 10 ? 32 : 52);
-      wrapCanvasText(ctx, value, x + 30, y + 96, width - 60, 44, 2);
+      // เพิ่มระยะระหว่างค่าหลักกับบรรทัดหน่วยให้ไม่แน่นเกินไป
+      wrapCanvasText(ctx, value, x + 30, y + 90, width - 60, 44, 2);
       ctx.fillStyle = '#475569';
       ctx.font = canvasFont(theme || getDefaultInfographicSettings(), 400, 20);
-      ctx.fillText(unit, x + 30, y + height - 26);
+      ctx.fillText(unit, x + 30, y + height - 14);
     }
 
     function drawSectionTitle(ctx, x, y, text, theme) {
